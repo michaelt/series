@@ -10,6 +10,7 @@ optimize `FreeT`, and thus can take any functor the aim is to represent *effectf
 
 The first optimization imposed is to replace it with a type `ListM` that makes a suitable quotient; this will lead to some correctness subtleties not yet resolved, but the procedure is familiar.
 
-
 The next is to develop an optimization infrastructure in terms of a corresponding Church encode type systematically following the model of `Data.List`.
+
+In some respects we follow the model of `ertes` experimental `fuse` package, though this attempts precedes that one temporally.
 
