@@ -17,13 +17,13 @@ import Prelude hiding (map, filter, drop, take, sum
 -- sum 
 -- ---------------
 lsum :: (Monad m, Num a) => Fold (Of a) m () -> m a
-lsum phi = jsum (getFold phi)
-
+lsum = \phi -> jsum (getFold phi)
+{-# INLINE lsum #-}
 jsum :: (Monad m, Num a) => Fold_ (Of a) m () -> m a
 jsum  = \phi -> phi (\(n :> mm) -> mm >>= \m -> return (m+n))
                     join
                     (\_ -> return 0) 
-
+{-# INLINE jsum #-}
 sum :: (Monad m, Num a) => ListM (Of a) m () -> m a
 sum = loop where
   loop = \case Construct (a :> as) -> liftM (a+) (loop as)
@@ -72,7 +72,7 @@ literate f a = Fold (jiterate f a)
 jiterate :: (a -> a) -> a -> Fold_ (Of a) m r
 jiterate f a = \construct wrap done -> 
        construct (a :> jiterate f (f a) construct wrap done) 
-
+{-# INLINE jiterate #-}
 iterate :: (a -> a) -> a -> ListM (Of a) m r
 iterate f = loop where
   loop a' = Construct (a' :> loop (f a'))
@@ -163,15 +163,15 @@ repeatMF = buildListM . lrepeat
 -- ---------------
 
 jfilter :: (Monad m) => (a -> Bool) -> Fold_ (Of a) m r -> Fold_ (Of a) m r
-jfilter pred phi construct wrap done = 
+jfilter pred = \phi construct wrap done ->
    phi (\aa@(a :> x) -> if pred a then construct aa else x)
        wrap 
        done
-
+{-# INLINE jfilter #-}
 
 lfilter :: Monad m => (a -> Bool) -> Fold (Of a) m r -> Fold (Of a) m r
-lfilter pred phi = Fold (jfilter pred (getFold phi))
-
+lfilter pred = \phi -> Fold (jfilter pred (getFold phi))
+{-# INLINE lfilter #-}
 
 filter  :: (Monad m) => (a -> Bool) -> ListM (Of a) m r -> ListM (Of a) m r
 filter pred = loop where
@@ -181,13 +181,14 @@ filter pred = loop where
                Done r -> Done r
                
 filterF pred = buildListM . lfilter pred . foldListM
+{-# INLINE filterF #-}
 
 jfilterM :: (Monad m) => (a -> m Bool) -> Fold_ (Of a) m r -> Fold_ (Of a) m r
-jfilterM pred phi construct wrap done = 
+jfilterM pred = \phi construct wrap done ->
    phi (\aa@(a :> x) -> wrap $ liftM (\b -> if b then construct aa else x) (pred a))
        wrap 
        done
-
+{-# INLINE jfilterM #-}
 
 lfilterM :: Monad m => (a -> m Bool) -> Fold (Of a) m r -> Fold (Of a) m r
 lfilterM pred phi = Fold (jfilterM pred (getFold phi))
@@ -243,53 +244,64 @@ filterMF pred = buildListM . lfilterM pred . foldListM
 -- ---------------
 
 ldrop :: Monad m => Int -> Fold (Of a) m r -> Fold (Of a) m r
-ldrop n phi = Fold (jdrop n (getFold phi))
-
+ldrop n = \phi -> Fold (jdrop n (getFold phi))
+{-# INLINE ldrop #-}
 
 jdrop :: Monad m => Int -> Fold_ (Of a) m r -> Fold_ (Of a) m r
-jdrop m phi construct wrap done = 
+jdrop m = \phi construct wrap done -> 
    phi  
     (\(a :> fn) n -> if n <= m then fn (n+1) else construct (a :> (fn (n+1))))
     (\m n -> wrap (m >>= \fn -> return (fn n)))
     (\r _ -> done r)
-    0
+    1
+{-# INLINE jdrop #-}
 
-drop :: (Monad m, Functor f) => Int -> ListM f m r -> ListM f m r
+drop :: (Monad m) => Int -> ListM (Of a) m r -> ListM (Of a) m r
 drop = loop where
-  loop 0 = id
-  loop n = \case 
-     Construct fa -> Construct (fmap (loop (n-1)) fa)
+  loop 0 p = p
+  loop n p = case p of
+     Construct (a :> as) -> loop (n-1) as
      Wrap ma      -> Wrap (liftM (drop n) ma)
      Done r       -> Done r
 
 dropF n = buildListM . ldrop n . foldListM
+{-# INLINE dropF #-}
+
 -- ---------------
 -- map
 -- ---------------
 lmap f = \fold -> Fold (jmap f (getFold fold))
+{-# INLINE lmap #-}
 
 jmap :: (a -> b) -> Fold_ (Of a) m r -> Fold_ (Of b) m r
 jmap f = \phi construct wrap done -> 
       phi (\(a :> x) -> construct (f a :> x)) 
           wrap 
           done 
-
+{-# INLINE jmap #-}
 map f = loop where
   loop = \case Construct (a :> as) -> Construct (f a :> loop as)
                Wrap m -> Wrap (liftM (map f) m)
                Done r -> Done r
 
 mapF f = buildListM . lmap f . foldListM
+{-# INLINE mapF #-}
 
 jmapM :: Monad m => (a -> m b) -> Fold_ (Of a) m r -> Fold_ (Of b) m r
 jmapM f = \phi construct wrap done -> 
       phi (\(a :> x) -> wrap (liftM (construct . (:> x)) (f a)))
           wrap 
           done        
-
+{-# INLINE jmapM #-}
+lmapM :: Monad m => (a -> m b) -> Fold (Of a) m r -> Fold (Of b) m r
 lmapM f = \(Fold phi) -> Fold (jmapM f phi)
-
+{-# INLINE lmapM #-}
+mapMF :: Monad m => (a -> m b) -> ListM (Of a) m r -> ListM (Of b) m r
 mapMF f = buildListM . lmapM f . foldListM
+{-# INLINE mapMF #-}
+mapM :: Monad m => (a -> m b) -> ListM (Of a) m r -> ListM (Of b) m r
+mapM f = loop where
+  loop = \case Construct (a :> as) -> Wrap $ liftM (Construct.(:> loop as)) (f a)
 -- map :: (a -> b) -> [a] -> [b]
 -- {-# NOINLINE [1] map #-}    -- We want the RULE to fire first.
 --                             -- It's recursive, so won't inline anyway,
@@ -340,6 +352,7 @@ mapMF f = buildListM . lmapM f . foldListM
 
 ltake :: Monad m => Int -> Fold (Of a) m r -> Fold (Of a) m ()
 ltake n = \(Fold phi)  -> Fold (jtake n phi)
+{-# INLINE ltake #-}
 --      phi 
 --      (\(a :> fn) n -> if n <= 0 then rout () else fout (a :> (fn (n-1))))
 --      (\m n -> mout (liftM ($n) m)) 
@@ -348,19 +361,21 @@ ltake n = \(Fold phi)  -> Fold (jtake n phi)
 jtake :: Monad m => Int -> Fold_ (Of a) m r -> Fold_ (Of a) m ()
 jtake n phi = \construct wrap done -> phi 
       (\(a :> fn) n -> if n <= 0 then done () else construct (a :> (fn (n-1))))
-      (\m n -> wrap (liftM ($n) m)) 
+      (\m n -> if n <= 0 then done () else wrap (liftM ($n) m)) 
       (\r n -> done ()) 
       n
+{-# INLINE jtake #-}
 
-take :: (Monad m, Functor f) => Int -> ListM f m r -> ListM f m ()
+take :: Monad m => Int -> ListM (Of a) m r -> ListM (Of a) m ()
 take = loop where
-  loop 0 = (>> return ())
-  loop n = \case Construct f -> Construct (fmap (loop (n-1)) f)
-                 Wrap m -> Wrap (liftM (loop n) m)
-                 Done r -> Done ()
+  loop 0 p = return ()
+  loop n p = 
+    case p of Construct (a :> as) -> Construct (a :> loop (n-1) as)
+              Wrap m -> Wrap (liftM (loop n) m)
+              Done r -> Done ()
 
 takeF n = buildListM . ltake n . foldListM
-
+{-# INLINE takeF #-}
 -- 
 -- 
 

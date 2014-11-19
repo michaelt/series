@@ -61,31 +61,31 @@ augmentsFold_ = \phi psi construct wrap done ->
 -- -------------------
 -- various isomorphisms and kin
 -- -------------------
+buildListMx  ::  Fold_ f m t -> ListM f m t 
+buildListMx = \phi -> phi Construct Wrap Done
 
-buildListM_ :: Fold_ f m r -> ListM f m r 
-buildListM_ = \phi -> phi Construct Wrap Done
-
-foldListM_  :: (Functor f, Monad m) => ListM f m t -> Fold_ f m t
-foldListM_ lst = \construct wrap done ->
+foldListMx  :: (Functor f, Monad m) => ListM f m t -> Fold_ f m t
+foldListMx lst = \construct wrap done ->
    let loop = \case Wrap mlst  -> wrap (liftM loop mlst) 
                     Construct flst -> construct (fmap loop flst)
                     Done r     -> done r
    in  loop lst 
+
 -- -----
 buildListM :: Fold f m r -> ListM f m r 
-buildListM = \(Fold phi) -> buildListM_ phi
-{-# INLINE[1] buildListM #-}
+buildListM = \(Fold phi) -> buildListMx phi
+{-# INLINE[0] buildListM #-}
 foldListM  :: (Functor f, Monad m) => ListM f m t -> Fold f m t
-foldListM = \lst -> Fold (foldListM_ lst)
-{-# INLINE[1] foldListM  #-}
+foldListM = \lst -> Fold (foldListMx lst)
+{-# INLINE[0] foldListM  #-}
 
 {-# RULES
-
- "foldListM/buildListM" forall phi.
-   foldListM (buildListM phi) = phi
  
- 
-  #-}
+  "foldListM/buildListM" forall phi.
+    foldListM (buildListM phi) = phi
+  
+  
+    #-}
 -- -----
 -- -----
 
@@ -284,7 +284,7 @@ iterT2 :: (Monad m) => (f (m a) -> m a) ->  Fold_ f m a -> m a
 iterT2 phi fold = fold phi join return
 
 folded'' :: (Functor f, Monad m) => (f (m a) -> m a) -> ListM f m a -> m a
-folded'' phi ls = iterT2 phi (foldListM_ ls)
+folded'' phi ls = iterT2 phi (foldListMx ls)
 
 -- ---------------
 

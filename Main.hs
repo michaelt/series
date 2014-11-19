@@ -8,10 +8,9 @@ import Control.Monad.Morph
 
 main :: IO ()
 main = sumF ( 
-             (takeF 1000
+             (takeF 1000000
               (dropF 100
-              
-                (mapMF (\x -> let y = 3*x in print y >> return y)
+                (mapF (\x -> 3*x + 1)
                 (filterF even
                (iterateF (\x -> x+1) (10 :: Int) )
              )))))  >>= print
