@@ -61,16 +61,34 @@ augmentsFold_ = \phi psi construct wrap done ->
 -- -------------------
 -- various isomorphisms and kin
 -- -------------------
-buildListMx  ::  Fold_ f m t -> ListM f m t 
+-- buildListMx  ::  Fold_ f m t -> ListM f m t 
+--
+buildListMx
+  :: ((f (ListM f m r) -> ListM f m r)
+      -> (m1 (ListM f1 m1 r1) -> ListM f1 m1 r1)
+      -> (r2 -> ListM f2 m2 r2)
+      -> t)
+     -> t
 buildListMx = \phi -> phi Construct Wrap Done
+{-# INLINE[1] buildListMx #-}
 
-foldListMx  :: (Functor f, Monad m) => ListM f m t -> Fold_ f m t
+foldListMx
+  :: (Functor f, Monad m) =>
+     ListM f m t -> (f b -> b) -> (m b -> b) -> (t -> b) -> b
 foldListMx lst = \construct wrap done ->
    let loop = \case Wrap mlst  -> wrap (liftM loop mlst) 
                     Construct flst -> construct (fmap loop flst)
                     Done r     -> done r
    in  loop lst 
+{-# INLINE[1] foldListMx #-}
 
+{-# RULES
+ 
+  "foldListMx/buildListMx" forall phi.
+    foldListMx (buildListMx phi) = phi
+  
+  
+    #-}
 -- -----
 buildListM :: Fold f m r -> ListM f m r 
 buildListM = \(Fold phi) -> buildListMx phi
