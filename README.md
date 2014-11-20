@@ -1,5 +1,5 @@
-Series
-=====
+series
+======
 
 The standard `FreeT` module is irremediably slow and lacks
 crucial combinators. In particular it does not develop the

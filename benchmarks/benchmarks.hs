@@ -15,10 +15,10 @@ import qualified Pipes.Prelude as PP
 
 
 value :: Int
-value = 1000
+value = 10
 
 wrap :: Int -> Int
-wrap  = \n -> runIdentity $ sumF ( 
+wrap n =  runIdentity $ sumF ( 
              (takeF n
               (dropF 100
                 (mapF (\x ->  3*x + 1)
@@ -63,7 +63,7 @@ pipe = \n -> runIdentity $
 {-# INLINE pipe #-}
 
 shwrap :: Int -> Int
-shwrap = \n -> runIdentity $ sumF (takeF n (iterateF (\x -> x+1) (10 :: Int) :: Series (Of Int) Identity ()))
+shwrap n = runIdentity $ sumF (takeF n (iterateF (\x -> x+1) (10 :: Int) :: Series (Of Int) Identity ()))
 {-# INLINE shwrap #-}
 shraw :: Int -> Int
 shraw = \n -> runIdentity $ sumG (takeG n (iterateG (\x -> x+1) (10 :: Int) :: Series (Of Int) Identity ()))
@@ -82,7 +82,7 @@ shpipe = \n -> runIdentity $
                    )
 {-# INLINE shpipe #-}                
 rr :: Int -> Series (Of Int) Identity ()
-rr = \n -> takeG (n-2) (replicateG n 1)
+rr n = takeG (n-2) (replicateG n 1)
 {-# INLINE rr #-}
 rw :: Int -> Series (Of Int) Identity ()
 rw = \n -> takeF (n-2) (replicateF n 1)
@@ -98,48 +98,24 @@ main :: IO ()
 main =
   defaultMain
   [ bgroup "fusion"
-      [ bench "raw" $ whnf raw value
+      [ bench "raw" $ whnf (\x -> raw x) value
       , bench "wrap" $ whnf wrap value
       , bench "listM" $ whnf listM value
-      , bench "list" $ whnf list value
+      , bench "list" $ whnf (\x -> list x) value
       , bench "pipe" $ whnf pipe value
-      
-      
       ]
- , bgroup "short"
-      [ bench "raw" $ whnf shraw value
+  , bgroup "short"
+      [ bench "raw" $ whnf (\x -> shraw x) value
       , bench "wrap" $ whnf shwrap value
       , bench "listM" $ whnf shSeries value
-      , bench "list" $ whnf shlist value
+      , bench "list" $ whnf (\x -> shlist x) value
       , bench "pipe" $ whnf shpipe value
-      
       ]
   , bgroup "shorter"
-       [ bench "raw" $ whnf rr value
+       [ bench "raw" $ whnf (\x -> rr x)value
        , bench "wrap" $ whnf rw value
        , bench "listM" $ whnf rlm value
-       , bench "list" $ whnf rl value
+       , bench "list" $ whnf (\x -> rl x) value
        ]
-  -- , bgroup "dropWhile"
-  --     [ bench "machines" $ whnf drainM (M.droppingWhile (<= value))
-  --     , bench "pipes" $ whnf drainP (P.dropWhile (<= value))
-  --     ]
-  -- , bgroup "scan"
-  --     [ bench "machines" $ whnf drainM (M.scan (+) 0)
-  --     , bench "pipes" $ whnf drainP (P.scan (+) 0 id)
-  --     , bench "conduit" $ whnf drainC (C.scanl (\a s -> let b = a+s in (b,b)) 0)
-  --     ]
-  -- , bgroup "take"
-  --     [ bench "machines" $ whnf drainM (M.taking value)
-  --     , bench "pipes" $ whnf drainP (P.take value)
-  --     , bench "conduit" $ whnf drainSC (C.take value)
-  --     ]
-  -- , bgroup "takeWhile"
-  --     [ bench "machines" $ whnf drainM (M.takingWhile (<= value))
-  --     , bench "pipes" $ whnf drainP (P.takeWhile (<= value))
-  --     ]
-  -- , bgroup "fold"
-  --     [ bench "machines" $ whnf drainM (M.fold (+) 0)
-  --     , bench "pipes" $ whnf (P.fold (+) 0 id) sourceP
-  --     ]
+
   ]

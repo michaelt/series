@@ -5,15 +5,7 @@ import Control.Monad hiding (filterM, mapM)
 import Prelude hiding (map, filter, drop, take, sum
                       , iterate, repeat, replicate, splitAt
                       , takeWhile)
---
 
-
-
--- -------------------
--- various isomorphisms and kin
--- -------------------
--- buildSeriesx  ::  Fold_ f m t -> Series f m t 
---
 buildSeriesx
   :: ((f (Series f m r) -> Series f m r)
       -> (m1 (Series f1 m1 r1) -> Series f1 m1 r1)
@@ -21,39 +13,60 @@ buildSeriesx
       -> t)
      -> t
 buildSeriesx = \phi -> phi Construct Wrap Done
-{-# INLINE[0] buildSeriesx #-}
+{-# INLINE[1] buildSeriesx #-}
 
 foldSeriesx
   :: (Functor f, Monad m) =>
      Series f m t -> (f b -> b) -> (m b -> b) -> (t -> b) -> b
-foldSeriesx lst = \construct wrap done ->
+foldSeriesx = \lst construct wrap done ->
    let loop = \case Wrap mlst  -> wrap (liftM loop mlst) 
                     Construct flst -> construct (fmap loop flst)
                     Done r     -> done r
    in  loop lst 
-{-# INLINE[0] foldSeriesx #-}
+{-# INLINE[1] foldSeriesx #-}
 
 {-# RULES
  
   "foldSeriesx/buildSeriesx" forall phi.
     foldSeriesx (buildSeriesx phi) = phi
-  
-  
+    
     #-}
+--
+
+{-# RULES
+ 
+  "foldSeriesx/buildSeriesxsat" forall phi x.
+    foldSeriesx (buildSeriesx phi) x = phi x
+    
+    #-}
+    
+
+{-# RULES
+ 
+  "foldSeriesx/buildSeriesxsat2" forall phi x y.
+    foldSeriesx (buildSeriesx phi) x y = phi x y
+    
+    #-}
+
+{-# RULES
+
+      "foldSeriesx/buildSeriesxsat3" forall phi x y z.
+        foldSeriesx (buildSeriesx phi) x y z = phi x y z
+
+        #-}
 -- -----
 buildSeries :: Fold f m r -> Series f m r 
 buildSeries = \(Fold phi) -> buildSeriesx phi
-{-# INLINE[0] buildSeries #-}
+{-# INLINE[1] buildSeries #-}
+
 foldSeries  :: (Functor f, Monad m) => Series f m t -> Fold f m t
 foldSeries = \lst -> Fold (foldSeriesx lst)
-{-# INLINE[0] foldSeries  #-}
+{-# INLINE[1] foldSeries  #-}
 
 {-# RULES
  
   "foldSeries/buildSeries" forall phi.
     foldSeries (buildSeries phi) = phi
-  
-  
     #-}
 
 -- ---------------
@@ -68,6 +81,7 @@ foldSeries = \lst -> Fold (foldSeriesx lst)
 lsum :: (Monad m, Num a) => Fold (Of a) m () -> m a
 lsum = \phi -> jsum (getFold phi)
 {-# INLINE lsum #-}
+
 jsum :: (Monad m, Num a) => Fold_ (Of a) m () -> m a
 jsum  = \phi -> phi (\(n :> mm) -> mm >>= \m -> return (m+n))
                     join
@@ -82,18 +96,23 @@ sum = loop where
 sumF :: (Monad m, Num a) => Series (Of a) m () -> m a
 sumF  = lsum . foldSeries 
 {-# INLINE sumF #-}
+
 sumG :: (Monad m, Num a) => Series (Of a) m () -> m a
 sumG  = \ls -> jsum (foldSeriesx ls)
 {-# INLINE sumG #-}
+
 -- ---------------
 -- replicate 
 -- ---------------
+
 jreplicate :: Monad m => Int -> a -> Fold_ (Of a) m ()
 jreplicate n a = jtake n (jrepeat a)
 {-# INLINE jreplicate #-}
+
 lreplicate :: Monad m => Int -> a -> Fold (Of a) m ()
 lreplicate n a = Fold (jtake n (jrepeat a))
 {-# INLINE lreplicate #-}
+
 replicate :: Monad m => Int -> a -> Series (Of a) m ()
 replicate n a = loop n where
   loop 0 = Done ()
@@ -102,9 +121,11 @@ replicate n a = loop n where
 replicateF :: Monad m => Int -> a -> Series (Of a) m ()
 replicateF n a = buildSeries (lreplicate n a)
 {-# INLINE replicateF #-}
+
 replicateG :: Monad m => Int -> a -> Series (Of a) m ()
 replicateG = \n a -> buildSeriesx (jreplicate n a)
 {-# INLINE replicateG #-}
+
 jreplicateM :: Monad m => Int -> m a -> Fold_ (Of a) m ()
 jreplicateM n a = jtake n (jrepeatM a)
 
@@ -126,7 +147,7 @@ literate f a = Fold (jiterate f a)
 {-# INLINE literate #-}
 
 jiterate :: (a -> a) -> a -> Fold_ (Of a) m r
-jiterate f a = \construct wrap done -> 
+jiterate = \f a construct wrap done -> 
        construct (a :> jiterate f (f a) construct wrap done) 
 {-# INLINE jiterate #-}
 iterate :: (a -> a) -> a -> Series (Of a) m r
@@ -138,7 +159,7 @@ iterateF f  = buildSeries . literate f
 {-# INLINE iterateF #-}
 
 iterateG :: (a -> a) -> a -> Series (Of a) m r
-iterateG f a =  buildSeriesx (jiterate f a)
+iterateG = \f a -> buildSeriesx (jiterate f a)
 {-# INLINE iterateG #-}
 
 jiterateM :: Monad m => (a -> m a) -> m a -> Fold_ (Of a) m r
@@ -155,7 +176,8 @@ iterateM f = loop where
                        return (Construct (a :> loop (f a)))
 
 iterateMG :: Monad m => (a -> m a) -> m a -> Series (Of a) m r
-iterateMG f m = buildSeriesx (jiterateM f m)
+iterateMG = \f m -> buildSeriesx (jiterateM f m)
+{-# INLINE iterateMG #-}
 -- -- | 'iterate' @f x@ returns an infinite list of repeated applications
 -- -- of @f@ to @x@:
 -- --
@@ -180,7 +202,8 @@ iterateMG f m = buildSeriesx (jiterateM f m)
 -- ---------------
 
 jrepeat :: a -> Fold_ (Of a) m r
-jrepeat a = \construct wrap done -> let loop = construct (a :> loop) in loop
+jrepeat = \a construct wrap done -> let loop = construct (a :> loop) in loop
+{-# INLINE jrepeat #-}
 
 lrepeat :: a -> Fold (Of a) m r
 lrepeat a = Fold (jrepeat a)
@@ -234,7 +257,7 @@ repeatMG = \x -> buildSeriesx (jrepeatM x)
 -- ---------------
 
 jfilter :: (Monad m) => (a -> Bool) -> Fold_ (Of a) m r -> Fold_ (Of a) m r
-jfilter pred = \phi construct wrap done ->
+jfilter = \pred phi construct wrap done ->
    phi (\aa@(a :> x) -> if pred a then construct aa else x)
        wrap 
        done
@@ -256,7 +279,7 @@ filterF pred = buildSeries . lfilter pred . foldSeries
 {-# INLINE filterF #-}
 
 filterG  :: (Monad m) => (a -> Bool) -> Series (Of a) m r -> Series (Of a) m r
-filterG pred = \phi -> buildSeriesx (jfilter pred  (foldSeriesx phi))
+filterG = \pred phi -> buildSeriesx (jfilter pred  (foldSeriesx phi))
 {-# INLINE filterG #-}
 
 jfilterM :: (Monad m) => (a -> m Bool) -> Fold_ (Of a) m r -> Fold_ (Of a) m r
@@ -328,7 +351,7 @@ ldrop n = \phi -> Fold (jdrop n (getFold phi))
 {-# INLINE ldrop #-}
 
 jdrop :: Monad m => Int -> Fold_ (Of a) m r -> Fold_ (Of a) m r
-jdrop m = \phi construct wrap done -> 
+jdrop = \m phi construct wrap done -> 
    phi  
     (\(a :> fn) n -> if n <= m then fn (n+1) else construct (a :> (fn (n+1))))
     (\m n -> wrap (m >>= \fn -> return (fn n)))
@@ -349,7 +372,7 @@ dropF n = buildSeries . ldrop n . foldSeries
 {-# INLINE dropF #-}
 --
 dropG :: (Monad m) => Int -> Series (Of a) m r -> Series (Of a) m r
-dropG n = \phi -> buildSeriesx (jdrop n (foldSeriesx phi))
+dropG = \n phi -> buildSeriesx (jdrop n (foldSeriesx phi))
 {-# INLINE dropG #-}
 -- ---------------
 -- map
@@ -359,7 +382,7 @@ lmap f = \fold -> Fold (jmap f (getFold fold))
 {-# INLINE lmap #-}
 
 jmap :: (a -> b) -> Fold_ (Of a) m r -> Fold_ (Of b) m r
-jmap f = \phi construct wrap done -> 
+jmap = \f phi construct wrap done -> 
       phi (\(a :> x) -> construct (f a :> x)) 
           wrap 
           done 
@@ -374,7 +397,7 @@ mapF f = buildSeries . lmap f . foldSeries
 {-# INLINE mapF #-}
 mapG
   :: Monad m2 => (a -> b) -> Series (Of a) m2 r2 -> Series (Of b) m2 r2
-mapG f = \phi -> buildSeriesx (jmap f (foldSeriesx phi))
+mapG = \f phi -> buildSeriesx (jmap f (foldSeriesx phi))
 {-# INLINE mapG #-}
 
 jmapM :: Monad m => (a -> m b) -> Fold_ (Of a) m r -> Fold_ (Of b) m r
@@ -455,7 +478,7 @@ ltake n = \(Fold phi)  -> Fold (jtake n phi)
 --      (\r n -> rout ()) 
 --      n)
 jtake :: Monad m => Int -> Fold_ (Of a) m r -> Fold_ (Of a) m ()
-jtake n phi = \construct wrap done -> phi 
+jtake = \n phi construct wrap done -> phi 
       (\(a :> fn) n -> if n <= 0 then done () else construct (a :> (fn (n-1))))
       (\m n -> if n <= 0 then done () else wrap (liftM ($n) m)) 
       (\r n -> done ()) 
@@ -475,7 +498,7 @@ takeF n = buildSeries . ltake n . foldSeries
 {-# INLINE takeF #-}
 
 takeG :: Monad m => Int -> Series (Of a) m r -> Series (Of a) m ()
-takeG n = \phi -> buildSeriesx (jtake n  (foldSeriesx phi))
+takeG = \n phi -> buildSeriesx (jtake n  (foldSeriesx phi))
 {-# INLINE takeG #-}
 -- 
 -- 
@@ -512,7 +535,7 @@ takeWhile pred = loop where
                Done r              -> Done ()
 
 jtakeWhile :: Monad m => (a -> Bool) -> Fold_ (Of a) m r -> Fold_ (Of a) m ()
-jtakeWhile pred phi = \construct wrap done -> phi
+jtakeWhile = \pred phi construct wrap done -> phi
   (\(a :> fn) p -> if not (pred a) 
                       then done () 
                       else construct (a :> (fn True)))
@@ -527,5 +550,5 @@ takeWhileF :: Monad m => (a -> Bool) -> Series (Of a) m r -> Series (Of a) m ()
 takeWhileF pred = buildSeries . ltakeWhile pred . foldSeries 
 
 takeWhileG :: Monad m => (a -> Bool) -> Series (Of a) m r -> Series (Of a) m ()
-takeWhileG pred = \phi -> buildSeriesx  (jtakeWhile pred  (foldSeriesx phi))
+takeWhileG = \pred phi -> buildSeriesx  (jtakeWhile pred  (foldSeriesx phi))
 {-# INLINE takeWhileG #-}

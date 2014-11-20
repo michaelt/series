@@ -1,29 +1,27 @@
 {-# LANGUAGE LambdaCase, RankNTypes #-}
 module Series.Combinators where
 import Series.Types
-
+import Control.Applicative 
 import Control.Monad
 import Control.Monad.Trans
-import Control.Applicative 
-import Data.Data ( Data, Typeable )
-import Data.Foldable ( Foldable )
-import Data.Traversable 
-import Pipes 
-import Pipes.Internal 
 import Control.Monad.Morph
-
-import Data.Functor.Identity
-import GHC.Exts ( build )
 import Control.Monad.Trans.Free ( FreeT(..), FreeF(Free) )
 import qualified Control.Monad.Trans.Free as Free  
+import Data.Functor.Identity
+import qualified Control.Foldl as L
+-- import Control.Foldl (Fold(..),FoldM(..))
+import Pipes 
+import Pipes.Internal 
+import GHC.Exts ( build )
+
+
+-- data Fold a b = forall x . Fold (x -> a -> x) x (x -> b)
 
 iterFold_ :: (Monad m) =>  Fold_ f m a -> (f (m a) -> m a) -> m a
 iterFold_ phi alg = phi alg join return
 
 iterFold :: (Monad m) =>  Fold f m a -> (f (m a) -> m a) -> m a
 iterFold phi alg = getFold phi alg join return
-
---
 
 augmentFold :: Fold (Of a) m () -> Fold (Of a) m r -> Fold (Of a) m r
 augmentFold phi psi = Fold (augmentFold_ (getFold phi) (getFold psi))
