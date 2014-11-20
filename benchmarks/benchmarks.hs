@@ -10,8 +10,8 @@ import Prelude hiding (map, filter, drop, take, sum
                       , splitAt, mapM, takeWhile)
 import qualified Prelude as P
 import Data.Functor.Identity
--- import Control.Monad.Morph
-import System.Environment
+import Pipes
+import qualified Pipes.Prelude as PP
 
 
 value :: Int
@@ -19,7 +19,7 @@ value = 1000
 
 wrap :: Int -> Int
 wrap n = runIdentity $ sumF ( 
-             (takeWhileF (< n)
+             (takeF n
               (dropF 100
                 (mapF (\x ->  3*x + 1)
                 (filterF even
@@ -28,7 +28,7 @@ wrap n = runIdentity $ sumF (
 
 raw :: Int -> Int
 raw n = runIdentity $ sumG ( 
-             (takeWhileG (< n)
+             (takeG n
               (dropG 100
                 (mapG (\x ->  3*x + 1)
                 (filterG even
@@ -37,7 +37,7 @@ raw n = runIdentity $ sumG (
 
 listM :: Int -> Int
 listM n = runIdentity $ sum ( 
-             (takeWhile (< n)
+             (take n
               (drop 100
                 (map (\x -> 3*x + 1)
                 (filter even
@@ -46,14 +46,22 @@ listM n = runIdentity $ sum (
               
 list :: Int -> Int
 list n = P.sum (
-    (P.takeWhile (< n)
+    (P.take n
      (P.drop 100
        (P.map (\x -> 3*x + 1)
        (P.filter even
       ((P.iterate (\x -> x+1) (10 :: Int) ) )
      ))))) 
 
---
+pipe :: Int -> Int
+pipe n = runIdentity $ 
+         PP.sum $ each (P.iterate (\x -> x+1) (10 :: Int) ) 
+                  >-> PP.filter even
+                  >-> PP.map (\x -> 3*x + 1)
+                  >-> PP.drop 100
+                  >-> PP.take n
+
+
 shwrap :: Int -> Int
 shwrap n = runIdentity $ sumF (takeF n (iterateF (\x -> x+1) (10 :: Int) :: ListM (Of Int) Identity ()))
 
@@ -66,6 +74,13 @@ shListM n = runIdentity $ sum (take n (iterate (\x -> x+1) (10 :: Int) :: ListM 
 shlist :: Int -> Int
 shlist n = P.sum (P.take n (P.iterate (\x -> x+1) (10 :: Int)))
 
+
+shpipe :: Int -> Int 
+shpipe n = runIdentity $ 
+           PP.sum (each (P.iterate (\x -> x+1) (10 :: Int) ) 
+                   >-> PP.take n
+                   )
+                   
 rr :: Int -> ListM (Of Int) Identity ()
 rr = \n -> takeG (n-2) (replicateG n 1)
 rw :: Int -> ListM (Of Int) Identity ()
@@ -83,6 +98,8 @@ main =
       , bench "wrap" $ whnf wrap value
       , bench "listM" $ whnf listM value
       , bench "list" $ whnf list value
+      , bench "pipe" $ whnf pipe value
+      
       
       ]
  , bgroup "short"
@@ -90,6 +107,8 @@ main =
       , bench "wrap" $ whnf shwrap value
       , bench "listM" $ whnf shListM value
       , bench "list" $ whnf shlist value
+      , bench "pipe" $ whnf shpipe value
+      
       ]
   , bgroup "shorter"
        [ bench "raw" $ whnf rr value

@@ -41,7 +41,10 @@ build-type:          Simple
 -- Extra files to be distributed with the package, such as examples or a 
 -- README.
 -- extra-source-files:  
-
+extra-source-files:
+  .gitignore
+  README.md
+  Main.hs
 -- Constraint on the version of Cabal needed to build this package.
 cabal-version:       >=1.10
 
@@ -64,4 +67,18 @@ library
   
   -- Base language which the package is written in.
   default-language:    Haskell2010
+  ghc-options:      -O2 
   
+benchmark benchmarks
+  default-language: Haskell2010
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   benchmarks
+  main-is:          Benchmarks.hs
+  ghc-options:      -O2 -rtsopts -threaded  -ddump-rule-firings
+
+  build-depends:
+    base == 4.*,
+    criterion ,
+    transformers,
+    pipes, 
+    ListM 

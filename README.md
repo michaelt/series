@@ -1,7 +1,31 @@
 ListM
 =====
 
-This package attempts to provide a replacement for `FreeT` in the `free` package and perhaps an optimization of the `Producer` type in `pipes` (= `FreeT ((,)a) m r`). The idea is impose a simple build/foldr optimization model following the well understood model of `Data.List`. At the moment, it is using an easier-to-implement variant in which the church encoded version of the `ListM`: 
+The standard `FreeT` module is irremediably slow and lacks
+crucial combinators. In particular it does not develop the
+important case in which the functor -- e.g `(a, _)`, here
+`Of a _` -- generates a list-like structure. Though the
+`ListM f m a` type here aspires to be an optimized
+`FreeT f m a` -- and thus can take any functor f -- the aim is to
+represent *effectful sequences* of various sorts, such as the
+`Producer` type in `pipes` (= `FreeT ((,) a) m r` =
+`ListM (Of a) m r`)
+
+In some respects we follow the model of `ertes`'s experimental
+[`fuse` package](http://hub.darcs.net/ertes/fuse), which may hold
+more interest; in particular the device of calling the strict
+pair `Of a b` is found there; his `FreeT` type is called `List`.
+
+The first optimization is in the datatype `ListM`: it requires a
+suitable quotient to be seen as isomorphic to `FreeT`; this will
+lead to some correctness subtleties not yet resolved, but the
+procedure is familiar.
+
+The next is to develop an optimization infrastructure in terms of
+a corresponding Church encoded type. Ideally this will follow the
+model of `Data.List`. At the moment, it is using two
+easier-to-implement variants in which a church encoded version of
+`ListM`, i.e.:
 
     type Fold_ f m r = forall r'
                        .  (f r' -> r') 
@@ -9,16 +33,15 @@ This package attempts to provide a replacement for `FreeT` in the `free` package
                        -> (r -> r') 
                        -> r'
 
-is wrapped in a newtype to keep everything from falling apart. In particular the
-compiler is apt to lose the rank-2 character of the type unless it is wrapped. On the other hand, it may be that the newtype constructor is impeding some compiler optimizations. 
+is used, both raw and wrapped in a newtype. (`ertes` and the
+Church-encoded module of the `free` package use an inexplicably
+more complex type.) At the moment, then, all functions are
+basically of the form `build . f-church . fold` so that we can
+eliminate `fold . build` in the style of the
+`stream . unstream  = id` rule in `vector`.
 
-The standard `FreeT` module is irremediably slow and lacks crucial combinators.
-In particular it does not develop the important case in which the functor -- e.g `(a, _)`,
-here `Of a _` -- generates a list-like structure. Though the `ListM f m a` type here aspires to be an optimized `FreeT f m a` -- and thus can take any functor f -- the aim is to represent *effectful sequences* of various sorts. In particular the `pipes` `Producer` concept (= `FreeT ((,) a) m r`) is to be represented, togther with an equivalent of the important but catastrophically slow `FreeT (Producer a m) m r`. 
 
-The first optimization imposed, however, is to replace `FreeT` with a datatype `ListM` that requires a suitable quotient to be seen as isomorphic to `FreeT` ; this will lead to some correctness subtleties not yet resolved, but the procedure is familiar.
 
-The next is to develop an optimization infrastructure in terms of a corresponding Church encoded type, systematically following the model of `Data.List`.
 
-In some respects we follow the model of `ertes` experimental [`fuse` package](http://hub.darcs.net/ertes/fuse), which may hold more interest.
+
 

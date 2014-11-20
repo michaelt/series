@@ -1,12 +1,60 @@
 {-# LANGUAGE LambdaCase, RankNTypes #-}
 module ListM.Fusion where
 import ListM.Types
-import ListM.Combinators
 import Control.Monad hiding (filterM, mapM)
 import Prelude hiding (map, filter, drop, take, sum
                       , iterate, repeat, replicate, splitAt
                       , takeWhile)
+--
 
+
+
+-- -------------------
+-- various isomorphisms and kin
+-- -------------------
+-- buildListMx  ::  Fold_ f m t -> ListM f m t 
+--
+buildListMx
+  :: ((f (ListM f m r) -> ListM f m r)
+      -> (m1 (ListM f1 m1 r1) -> ListM f1 m1 r1)
+      -> (r2 -> ListM f2 m2 r2)
+      -> t)
+     -> t
+buildListMx = \phi -> phi Construct Wrap Done
+{-# INLINE[0] buildListMx #-}
+
+foldListMx
+  :: (Functor f, Monad m) =>
+     ListM f m t -> (f b -> b) -> (m b -> b) -> (t -> b) -> b
+foldListMx lst = \construct wrap done ->
+   let loop = \case Wrap mlst  -> wrap (liftM loop mlst) 
+                    Construct flst -> construct (fmap loop flst)
+                    Done r     -> done r
+   in  loop lst 
+{-# INLINE[0] foldListMx #-}
+
+{-# RULES
+ 
+  "foldListMx/buildListMx" forall phi.
+    foldListMx (buildListMx phi) = phi
+  
+  
+    #-}
+-- -----
+buildListM :: Fold f m r -> ListM f m r 
+buildListM = \(Fold phi) -> buildListMx phi
+{-# INLINE[0] buildListM #-}
+foldListM  :: (Functor f, Monad m) => ListM f m t -> Fold f m t
+foldListM = \lst -> Fold (foldListMx lst)
+{-# INLINE[0] foldListM  #-}
+
+{-# RULES
+ 
+  "foldListM/buildListM" forall phi.
+    foldListM (buildListM phi) = phi
+  
+  
+    #-}
 
 -- ---------------
 -- ---------------
@@ -33,7 +81,7 @@ sum = loop where
 
 sumF :: (Monad m, Num a) => ListM (Of a) m () -> m a
 sumF  = lsum . foldListM 
-
+{-# INLINE sumF #-}
 sumG :: (Monad m, Num a) => ListM (Of a) m () -> m a
 sumG  = \ls -> jsum (foldListMx ls)
 {-# INLINE sumG #-}
@@ -42,10 +90,10 @@ sumG  = \ls -> jsum (foldListMx ls)
 -- ---------------
 jreplicate :: Monad m => Int -> a -> Fold_ (Of a) m ()
 jreplicate n a = jtake n (jrepeat a)
-
+{-# INLINE jreplicate #-}
 lreplicate :: Monad m => Int -> a -> Fold (Of a) m ()
 lreplicate n a = Fold (jtake n (jrepeat a))
-
+{-# INLINE lreplicate #-}
 replicate :: Monad m => Int -> a -> ListM (Of a) m ()
 replicate n a = loop n where
   loop 0 = Done ()
@@ -53,7 +101,10 @@ replicate n a = loop n where
 
 replicateF :: Monad m => Int -> a -> ListM (Of a) m ()
 replicateF n a = buildListM (lreplicate n a)
-
+{-# INLINE replicateF #-}
+replicateG :: Monad m => Int -> a -> ListM (Of a) m ()
+replicateG = \n a -> buildListMx (jreplicate n a)
+{-# INLINE replicateG #-}
 jreplicateM :: Monad m => Int -> m a -> Fold_ (Of a) m ()
 jreplicateM n a = jtake n (jrepeatM a)
 
