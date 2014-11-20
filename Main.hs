@@ -1,6 +1,6 @@
-import ListM.Types
-import ListM.Combinators
-import ListM.Fusion
+import Series.Types
+import Series.Combinators
+import Series.Fusion
 import Prelude hiding (map, filter, drop, take, sum
                       , iterate, repeat, replicate
                       , splitAt, mapM, takeWhile)
@@ -23,7 +23,7 @@ main = do (a:sn:_) <- getArgs -- pain where
                     (mapF (\x ->  3*x + 1)
                     (filterF even
                    (iterateF (\x -> x+1) (10 :: Int) )
-                 )))) :: ListM (Of Int) IO ())  >>= print
+                 )))) :: Series (Of Int) IO ())  >>= print
 
     g :: Int -> IO ()
     g n = print $ sumG ( 
@@ -32,7 +32,7 @@ main = do (a:sn:_) <- getArgs -- pain where
                     (mapG (\x ->  3*x + 1)
                     (filterG even
                    (iterateG (\x -> x+1) (10 :: Int) )
-                 )))) :: ListM (Of Int) Identity ()) 
+                 )))) :: Series (Of Int) Identity ()) 
 
     x :: Int -> IO ()
     x n = sum ( 
@@ -40,7 +40,7 @@ main = do (a:sn:_) <- getArgs -- pain where
                   (drop 100
                     (map (\x -> 3*x + 1)
                     (filter even
-                   ((iterate (\x -> x+1) (10 :: Int) ) :: ListM (Of Int) IO ())
+                   ((iterate (\x -> x+1) (10 :: Int) ) :: Series (Of Int) IO ())
                   )))))  >>= print
                   
                   

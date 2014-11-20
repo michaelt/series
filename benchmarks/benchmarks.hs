@@ -2,9 +2,9 @@ module Main (main) where
 
 import Control.Monad (void)
 import Criterion.Main
-import ListM.Types
-import ListM.Combinators
-import ListM.Fusion
+import Series.Types
+import Series.Combinators
+import Series.Fusion
 import Prelude hiding (map, filter, drop, take, sum
                       , iterate, repeat, replicate
                       , splitAt, mapM, takeWhile)
@@ -24,7 +24,7 @@ wrap  = \n -> runIdentity $ sumF (
                 (mapF (\x ->  3*x + 1)
                 (filterF even
                (iterateF (\x -> x+1) (10 :: Int) )
-             )))) :: ListM (Of Int) Identity ())  
+             )))) :: Series (Of Int) Identity ())  
 {-# INLINE wrap #-}
 raw :: Int -> Int
 raw = \n -> runIdentity $ sumG ( 
@@ -33,7 +33,7 @@ raw = \n -> runIdentity $ sumG (
                 (mapG (\x ->  3*x + 1)
                 (filterG even
                (iterateG (\x -> x+1) (10 :: Int) )
-             )))) :: ListM (Of Int) Identity ()) 
+             )))) :: Series (Of Int) Identity ()) 
 {-# INLINE raw #-}
 listM :: Int -> Int
 listM = \n -> runIdentity $ sum ( 
@@ -41,7 +41,7 @@ listM = \n -> runIdentity $ sum (
               (drop 100
                 (map (\x -> 3*x + 1)
                 (filter even
-               ((iterate (\x -> x+1) (10 :: Int) ) :: ListM (Of Int) Identity ())
+               ((iterate (\x -> x+1) (10 :: Int) ) :: Series (Of Int) Identity ())
               )))))  
 {-# INLINE listM #-}              
 list :: Int -> Int
@@ -63,14 +63,14 @@ pipe = \n -> runIdentity $
 {-# INLINE pipe #-}
 
 shwrap :: Int -> Int
-shwrap = \n -> runIdentity $ sumF (takeF n (iterateF (\x -> x+1) (10 :: Int) :: ListM (Of Int) Identity ()))
+shwrap = \n -> runIdentity $ sumF (takeF n (iterateF (\x -> x+1) (10 :: Int) :: Series (Of Int) Identity ()))
 {-# INLINE shwrap #-}
 shraw :: Int -> Int
-shraw = \n -> runIdentity $ sumG (takeG n (iterateG (\x -> x+1) (10 :: Int) :: ListM (Of Int) Identity ()))
+shraw = \n -> runIdentity $ sumG (takeG n (iterateG (\x -> x+1) (10 :: Int) :: Series (Of Int) Identity ()))
 {-# INLINE shraw #-}
-shListM :: Int -> Int
-shListM = \n -> runIdentity $ sum (take n (iterate (\x -> x+1) (10 :: Int) :: ListM (Of Int) Identity ()))
-{-# INLINE shListM #-}
+shSeries :: Int -> Int
+shSeries = \n -> runIdentity $ sum (take n (iterate (\x -> x+1) (10 :: Int) :: Series (Of Int) Identity ()))
+{-# INLINE shSeries #-}
 shlist :: Int -> Int
 shlist = \n -> P.sum (P.take n (P.iterate (\x -> x+1) (10 :: Int)))
 {-# INLINE shlist #-}
@@ -81,13 +81,13 @@ shpipe = \n -> runIdentity $
                    >-> PP.take n
                    )
 {-# INLINE shpipe #-}                
-rr :: Int -> ListM (Of Int) Identity ()
+rr :: Int -> Series (Of Int) Identity ()
 rr = \n -> takeG (n-2) (replicateG n 1)
 {-# INLINE rr #-}
-rw :: Int -> ListM (Of Int) Identity ()
+rw :: Int -> Series (Of Int) Identity ()
 rw = \n -> takeF (n-2) (replicateF n 1)
 {-# INLINE rw #-}
-rlm :: Int -> ListM (Of Int) Identity ()
+rlm :: Int -> Series (Of Int) Identity ()
 rlm = \n -> takeF (n-2) (replicate n 1)
 {-# INLINE rlm #-}
 rl :: Int -> [Int]
@@ -109,7 +109,7 @@ main =
  , bgroup "short"
       [ bench "raw" $ whnf shraw value
       , bench "wrap" $ whnf shwrap value
-      , bench "listM" $ whnf shListM value
+      , bench "listM" $ whnf shSeries value
       , bench "list" $ whnf shlist value
       , bench "pipe" $ whnf shpipe value
       

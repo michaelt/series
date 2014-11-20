@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase, RankNTypes #-}
-module ListM.Combinators where
-import ListM.Types
+module Series.Combinators where
+import Series.Types
 
 import Control.Monad
 import Control.Monad.Trans
@@ -59,15 +59,15 @@ augmentsFold_ = \phi psi construct wrap done ->
 -- -----
 -- -----
 
-producerToListM :: Monad m => Producer a m r -> ListM (Of a) m r
-producerToListM =  loop where
+producerToSeries :: Monad m => Producer a m r -> Series (Of a) m r
+producerToSeries =  loop where
   loop = \case M mp         -> Wrap (liftM loop mp)
                Pure r       -> Done r
                Respond a go -> Construct (a :> loop (go ()))
                Request x f  -> closed x
 
 
-listMMToProducer :: Monad m =>  ListM (Of a) m r -> Producer a m r 
+listMMToProducer :: Monad m =>  Series (Of a) m r -> Producer a m r 
 listMMToProducer = loop where
   loop = \case Wrap m              -> M (liftM loop m)  
                Construct (a :> as) -> Respond a (\() -> loop as)
@@ -124,7 +124,7 @@ freeFold construct wrap done =
 -- -----
 -- connections to standard haskell lists, listH
 -- -----
-listMToListH :: ListM (Of t) Identity () -> [t]
+listMToListH :: Series (Of t) Identity () -> [t]
 listMToListH  = \case Wrap (Identity ls)  -> listMToListH ls
                       Construct (a :> ls) -> a : listMToListH ls
                       Done ()             -> []
@@ -144,12 +144,12 @@ buildListH phi = build $ \cons nil ->
                       runIdentity 
                       (\() -> nil)
 
-listMFromListH :: [a] -> ListM (Of a) Identity ()
+listMFromListH :: [a] -> Series (Of a) Identity ()
 listMFromListH  []    = Done ()
 listMFromListH (x:xs) = Construct (x :> listMFromListH xs)
 
-toListMM :: Monad m => Fold_ (Of a) m r -> m ([a],r)
-toListMM phi = phi construct join (\r -> return ([], r)) where
+toSeriesM :: Monad m => Fold_ (Of a) m r -> m ([a],r)
+toSeriesM phi = phi construct join (\r -> return ([], r)) where
   construct (a :> mls) = do (as,r) <- mls
                             return (a : as, r)
 
@@ -158,7 +158,7 @@ toListMM phi = phi construct join (\r -> return ([], r)) where
 -- -------
 
 unfold :: (Functor f)
-    => (a -> Either r (f a))  -> a  -> ListM f m r
+    => (a -> Either r (f a))  -> a  -> Series f m r
 unfold f = let go = either Done (Construct . fmap go) . f in go
 
 unfold_ ::  (Functor f)
@@ -168,7 +168,7 @@ unfold_ f a = \frr mrr rr ->
             
 
 unfoldM :: (Functor f, Monad m)
-      => (a -> m (Either r (f a))) -> a -> ListM f m r
+      => (a -> m (Either r (f a))) -> a -> Series f m r
 unfoldM f = let loop = Wrap . liftM (either Done (Construct . fmap loop)) . f 
             in loop
 
@@ -187,7 +187,7 @@ effectfulFold :: (Functor f, Monad m) =>
                  (m a -> a)
               -> (r -> a)
               -> (f a -> a)
-              -> ListM f m r
+              -> Series f m r
               -> a
 effectfulFold  malg nil falg = loop where 
   loop = \case Wrap m      -> malg (liftM loop m)
@@ -195,7 +195,7 @@ effectfulFold  malg nil falg = loop where
                Done r      -> nil r
 
 efold :: (Functor f, Monad m) 
-      => (m b -> b) -> (Either a (f b) -> b) -> ListM f m a -> b
+      => (m b -> b) -> (Either a (f b) -> b) -> Series f m a -> b
 efold malg ealg = loop where
   loop = \case Wrap m      -> malg (liftM loop m)
                Construct f -> ealg (Right (fmap loop f))
@@ -204,16 +204,16 @@ efold malg ealg = loop where
 
 
 uncons :: (Monad m, Functor f) 
-       => ListM f m r -> m (Either r (f (ListM f m r)))
+       => Series f m r -> m (Either r (f (Series f m r)))
 uncons = \case Wrap m       -> m >>= uncons
                Construct ff -> return (Right ff)
                Done r       -> return (Left r)
   
   
 next :: (Monad m) 
-        => ListM (Of a) m r -> m (Either r (a, ListM (Of a) m r))
+        => Series (Of a) m r -> m (Either r (a, Series (Of a) m r))
 next  = liftM (fmap (\(a:>b) -> (a,b))). uncons 
-crush :: (Monad m, Functor f) => ListM f m r -> m (ListM f m r)
+crush :: (Monad m, Functor f) => Series f m r -> m (Series f m r)
 crush = \case Wrap m -> m
               a     -> return a
 
@@ -253,8 +253,8 @@ maps_ morph phi = \construct wrap done ->
 iterT2 :: (Monad m) => (f (m a) -> m a) ->  Fold_ f m a -> m a
 iterT2 phi fold = fold phi join return
 -- 
--- folded'' :: (Functor f, Monad m) => (f (m a) -> m a) -> ListM f m a -> m a
--- folded'' phi ls = iterT2 phi (foldListMx ls)
+-- folded'' :: (Functor f, Monad m) => (f (m a) -> m a) -> Series f m a -> m a
+-- folded'' phi ls = iterT2 phi (foldSeriesx ls)
 
 -- ---------------
 

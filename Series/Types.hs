@@ -2,8 +2,8 @@
              StandaloneDeriving, FlexibleContexts,
              DeriveDataTypeable, DeriveFoldable, 
              DeriveFunctor, DeriveTraversable #-}
-{-# LANGUAGE UndecidableInstances #-} -- for ListM show instance
-module ListM.Types where
+{-# LANGUAGE UndecidableInstances #-} -- for Series show instance
+module Series.Types where
   
 import Control.Monad
 import Control.Monad.Trans
@@ -29,34 +29,34 @@ headOf (a :> b) = a
 tailOf (a :> b) = b
 mapHead f (a :> b) = f a :> b
 
--- explicit ListM/FreeT data type
-data ListM f m r = Construct (f (ListM f m r))
-                 | Wrap (m (ListM f m r))
+-- explicit Series/FreeT data type
+data Series f m r = Construct (f (Series f m r))
+                 | Wrap (m (Series f m r))
                  | Done r
 
-deriving instance (Show r, Show (m (ListM f m r))
-                  , Show (f (ListM f m r))) => Show (ListM f m r)
+deriving instance (Show r, Show (m (Series f m r))
+                  , Show (f (Series f m r))) => Show (Series f m r)
 
-instance (Functor f, Monad m) => Functor (ListM f m) where
+instance (Functor f, Monad m) => Functor (Series f m) where
   fmap f = loop where
     loop = \case Construct f  -> Construct (fmap loop f)
                  Wrap m       -> Wrap (liftM loop m)
                  Done r       -> Done (f r)
                  
-instance (Functor f, Monad m) => Monad (ListM f m) where
+instance (Functor f, Monad m) => Monad (Series f m) where
   return = Done
   lst >>= f = loop lst where
     loop = \case Construct f -> Construct (fmap loop f)
                  Wrap m      -> Wrap (liftM loop m)
                  Done r      -> f r
                  
-instance (Functor f, Monad m) => Applicative (ListM f m) where
+instance (Functor f, Monad m) => Applicative (Series f m) where
   pure = Done; (<*>) = ap
   
-instance Functor f => MonadTrans (ListM f) where
+instance Functor f => MonadTrans (Series f) where
   lift = Wrap . liftM Done
 
-instance Functor f => MFunctor (ListM f) where
+instance Functor f => MFunctor (Series f) where
   hoist trans = loop where
     loop = \case Construct f -> Construct (fmap loop f)
                  Wrap m      -> Wrap (trans (liftM loop m))
