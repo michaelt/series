@@ -18,77 +18,81 @@ value :: Int
 value = 1000
 
 wrap :: Int -> Int
-wrap n = runIdentity $ sumF ( 
+wrap  = \n -> runIdentity $ sumF ( 
              (takeF n
               (dropF 100
                 (mapF (\x ->  3*x + 1)
                 (filterF even
                (iterateF (\x -> x+1) (10 :: Int) )
              )))) :: ListM (Of Int) Identity ())  
-
+{-# INLINE wrap #-}
 raw :: Int -> Int
-raw n = runIdentity $ sumG ( 
+raw = \n -> runIdentity $ sumG ( 
              (takeG n
               (dropG 100
                 (mapG (\x ->  3*x + 1)
                 (filterG even
                (iterateG (\x -> x+1) (10 :: Int) )
              )))) :: ListM (Of Int) Identity ()) 
-
+{-# INLINE raw #-}
 listM :: Int -> Int
-listM n = runIdentity $ sum ( 
+listM = \n -> runIdentity $ sum ( 
              (take n
               (drop 100
                 (map (\x -> 3*x + 1)
                 (filter even
                ((iterate (\x -> x+1) (10 :: Int) ) :: ListM (Of Int) Identity ())
               )))))  
-              
+{-# INLINE listM #-}              
 list :: Int -> Int
-list n = P.sum (
+list = \n ->  P.sum (
     (P.take n
      (P.drop 100
        (P.map (\x -> 3*x + 1)
        (P.filter even
       ((P.iterate (\x -> x+1) (10 :: Int) ) )
      ))))) 
-
+{-# INLINE list #-}
 pipe :: Int -> Int
-pipe n = runIdentity $ 
+pipe = \n -> runIdentity $ 
          PP.sum $ each (P.iterate (\x -> x+1) (10 :: Int) ) 
                   >-> PP.filter even
                   >-> PP.map (\x -> 3*x + 1)
                   >-> PP.drop 100
                   >-> PP.take n
-
+{-# INLINE pipe #-}
 
 shwrap :: Int -> Int
-shwrap n = runIdentity $ sumF (takeF n (iterateF (\x -> x+1) (10 :: Int) :: ListM (Of Int) Identity ()))
-
+shwrap = \n -> runIdentity $ sumF (takeF n (iterateF (\x -> x+1) (10 :: Int) :: ListM (Of Int) Identity ()))
+{-# INLINE shwrap #-}
 shraw :: Int -> Int
-shraw n = runIdentity $ sumG (takeG n (iterateG (\x -> x+1) (10 :: Int) :: ListM (Of Int) Identity ()))
-
+shraw = \n -> runIdentity $ sumG (takeG n (iterateG (\x -> x+1) (10 :: Int) :: ListM (Of Int) Identity ()))
+{-# INLINE shraw #-}
 shListM :: Int -> Int
-shListM n = runIdentity $ sum (take n (iterate (\x -> x+1) (10 :: Int) :: ListM (Of Int) Identity ()))
-
+shListM = \n -> runIdentity $ sum (take n (iterate (\x -> x+1) (10 :: Int) :: ListM (Of Int) Identity ()))
+{-# INLINE shListM #-}
 shlist :: Int -> Int
-shlist n = P.sum (P.take n (P.iterate (\x -> x+1) (10 :: Int)))
-
+shlist = \n -> P.sum (P.take n (P.iterate (\x -> x+1) (10 :: Int)))
+{-# INLINE shlist #-}
 
 shpipe :: Int -> Int 
-shpipe n = runIdentity $ 
+shpipe = \n -> runIdentity $ 
            PP.sum (each (P.iterate (\x -> x+1) (10 :: Int) ) 
                    >-> PP.take n
                    )
-                   
+{-# INLINE shpipe #-}                
 rr :: Int -> ListM (Of Int) Identity ()
 rr = \n -> takeG (n-2) (replicateG n 1)
+{-# INLINE rr #-}
 rw :: Int -> ListM (Of Int) Identity ()
 rw = \n -> takeF (n-2) (replicateF n 1)
+{-# INLINE rw #-}
 rlm :: Int -> ListM (Of Int) Identity ()
 rlm = \n -> takeF (n-2) (replicate n 1)
+{-# INLINE rlm #-}
 rl :: Int -> [Int]
 rl = \n -> P.take (n-2) (P.replicate n 1)
+{-# INLINE rl #-}
 
 main :: IO ()
 main =
