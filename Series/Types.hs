@@ -106,3 +106,78 @@ instance MonadTrans (Fold f) where
 instance Functor f => MFunctor (Fold f) where
   hoist trans phi = Fold (\construct wrap done -> 
     getFold phi construct (wrap . trans) done)
+
+buildSeries :: Fold f m r -> Series f m r 
+buildSeries = \(Fold phi) -> phi Construct Wrap Done
+{-# INLINE[0] buildSeries #-}
+
+foldSeries  :: (Functor f, Monad m) => Series f m t -> Fold f m t
+foldSeries = \lst -> Fold (\construct wrap done ->
+  let loop = \case Wrap mlst      -> wrap (liftM loop mlst) 
+                   Construct flst -> construct (fmap loop flst)
+                   Done r         -> done r
+  in  loop lst)
+{-# INLINE[0] foldSeries  #-}
+
+-- The compiler has no difficulty with the rule for the wrapped case.
+-- I have not investigated whether the remaining newtype
+-- constructor is acting as an impediment. 
+
+{-# RULES
+  "foldSeries/buildSeries" forall phi.
+    foldSeries (buildSeries phi) = phi
+    #-}
+    
+-- ----
+buildSeriesx
+  :: ((f (Series f m r) -> Series f m r)
+      -> (m1 (Series f1 m1 r1) -> Series f1 m1 r1)
+      -> (r2 -> Series f2 m2 r2)
+      -> t)
+     -> t
+buildSeriesx = \phi -> phi Construct Wrap Done
+{-# INLINE[1] buildSeriesx #-}
+
+foldSeriesx
+  :: (Functor f, Monad m) =>
+     Series f m t -> (f b -> b) -> (m b -> b) -> (t -> b) -> b
+foldSeriesx = \lst construct wrap done ->
+   let loop = \case Wrap mlst  -> wrap (liftM loop mlst) 
+                    Construct flst -> construct (fmap loop flst)
+                    Done r     -> done r
+   in  loop lst 
+{-# INLINE[1] foldSeriesx #-}
+
+-- the compiler seems to have trouble seeing these rules as applicable,
+-- unlike those for foldSeries & buildSeries
+{-# RULES
+ 
+  "foldSeriesx/buildSeriesx" forall phi.
+    foldSeriesx (buildSeriesx phi) = phi
+    
+    #-}
+
+
+{-# RULES
+ 
+  "foldSeriesx/buildSeriesxsat" forall phi x.
+    foldSeriesx (buildSeriesx phi) x = phi x
+    
+    #-}
+    
+
+{-# RULES
+ 
+  "foldSeriesx/buildSeriesxsat2" forall phi x y.
+    foldSeriesx (buildSeriesx phi) x y = phi x y
+    
+    #-}
+
+{-# RULES
+
+      "foldSeriesx/buildSeriesxsat3" forall phi x y z.
+        foldSeriesx (buildSeriesx phi) x y z = phi x y z
+
+        #-}
+-- -----
+

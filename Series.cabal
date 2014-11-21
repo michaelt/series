@@ -24,7 +24,7 @@ cabal-version:       >=1.10
 
 
 library
-  exposed-modules:     Series.Combinators, Series.Fusion, Series.Types
+  exposed-modules:     Series.Combinators, Series.Prelude, Series.Types
     -- other-modules:       
   other-extensions:    LambdaCase, RankNTypes, EmptyCase, 
                        StandaloneDeriving, FlexibleContexts, 

@@ -17,8 +17,10 @@ import qualified Pipes.Prelude as PP
 value :: Int
 value = 10
 
+-- long composition --
+
 wrap :: Int -> Int
-wrap n =  runIdentity $ sumF ( 
+wrap = \n -> runIdentity $ sumF ( 
              (takeF n
               (dropF 100
                 (mapF (\x ->  3*x + 1)
@@ -26,6 +28,7 @@ wrap n =  runIdentity $ sumF (
                (iterateF (\x -> x+1) (10 :: Int) )
              )))) :: Series (Of Int) Identity ())  
 {-# INLINE wrap #-}
+
 raw :: Int -> Int
 raw = \n -> runIdentity $ sumG ( 
              (takeG n
@@ -35,6 +38,7 @@ raw = \n -> runIdentity $ sumG (
                (iterateG (\x -> x+1) (10 :: Int) )
              )))) :: Series (Of Int) Identity ()) 
 {-# INLINE raw #-}
+
 listM :: Int -> Int
 listM = \n -> runIdentity $ sum ( 
              (take n
@@ -43,7 +47,8 @@ listM = \n -> runIdentity $ sum (
                 (filter even
                ((iterate (\x -> x+1) (10 :: Int) ) :: Series (Of Int) Identity ())
               )))))  
-{-# INLINE listM #-}              
+{-# INLINE listM #-}  
+            
 list :: Int -> Int
 list = \n ->  P.sum (
     (P.take n
@@ -53,6 +58,7 @@ list = \n ->  P.sum (
       ((P.iterate (\x -> x+1) (10 :: Int) ) )
      ))))) 
 {-# INLINE list #-}
+
 pipe :: Int -> Int
 pipe = \n -> runIdentity $ 
          PP.sum $ each (P.iterate (\x -> x+1) (10 :: Int) ) 
@@ -62,60 +68,71 @@ pipe = \n -> runIdentity $
                   >-> PP.take n
 {-# INLINE pipe #-}
 
-shwrap :: Int -> Int
-shwrap n = runIdentity $ sumF (takeF n (iterateF (\x -> x+1) (10 :: Int) :: Series (Of Int) Identity ()))
-{-# INLINE shwrap #-}
-shraw :: Int -> Int
-shraw = \n -> runIdentity $ sumG (takeG n (iterateG (\x -> x+1) (10 :: Int) :: Series (Of Int) Identity ()))
-{-# INLINE shraw #-}
-shSeries :: Int -> Int
-shSeries = \n -> runIdentity $ sum (take n (iterate (\x -> x+1) (10 :: Int) :: Series (Of Int) Identity ()))
-{-# INLINE shSeries #-}
-shlist :: Int -> Int
-shlist = \n -> P.sum (P.take n (P.iterate (\x -> x+1) (10 :: Int)))
-{-# INLINE shlist #-}
+-- shorter composition --
 
-shpipe :: Int -> Int 
-shpipe = \n -> runIdentity $ 
+sh_wrap :: Int -> Int
+sh_wrap = \n -> runIdentity $ sumF (takeF n (iterateF (\x -> x+1) (10 :: Int) :: Series (Of Int) Identity ()))
+{-# INLINE sh_wrap #-}
+
+sh_raw :: Int -> Int
+sh_raw = \n -> runIdentity $ sumG (takeG n (iterateG (\x -> x+1) (10 :: Int) :: Series (Of Int) Identity ()))
+{-# INLINE sh_raw #-}
+
+sh_series :: Int -> Int
+sh_series = \n -> runIdentity $ sum (take n (iterate (\x -> x+1) (10 :: Int) :: Series (Of Int) Identity ()))
+{-# INLINE sh_series #-}
+
+sh_list :: Int -> Int
+sh_list = \n -> P.sum (P.take n (P.iterate (\x -> x+1) (10 :: Int)))
+{-# INLINE sh_list #-}
+
+sh_pipe :: Int -> Int 
+sh_pipe = \n -> runIdentity $ 
            PP.sum (each (P.iterate (\x -> x+1) (10 :: Int) ) 
                    >-> PP.take n
                    )
-{-# INLINE shpipe #-}                
-rr :: Int -> Series (Of Int) Identity ()
-rr n = takeG (n-2) (replicateG n 1)
+{-# INLINE sh_pipe #-}                
+
+-- simple sum --
+
+rr :: Int -> Int -- Series (Of Int) Identity ()
+rr = \n -> runIdentity (sumG (replicateG n 1))
 {-# INLINE rr #-}
-rw :: Int -> Series (Of Int) Identity ()
-rw = \n -> takeF (n-2) (replicateF n 1)
-{-# INLINE rw #-}
-rlm :: Int -> Series (Of Int) Identity ()
-rlm = \n -> takeF (n-2) (replicate n 1)
+
+rw :: Int -> Int -- Series (Of Int) Identity ()
+rw = \n -> runIdentity (sumF (replicateF n 1))
+{-# INLINE rw #-}    
+
+rlm :: Int -> Int -- Series (Of Int) Identity ()
+rlm = \n -> runIdentity (sum (replicate n 1))
 {-# INLINE rlm #-}
-rl :: Int -> [Int]
-rl = \n -> P.take (n-2) (P.replicate n 1)
+
+rl :: Int -> Int
+rl = \n -> P.sum (P.replicate n 1)
 {-# INLINE rl #-}
 
 main :: IO ()
 main =
   defaultMain
   [ bgroup "fusion"
-      [ bench "raw" $ whnf (\x -> raw x) value
+      [ bench "raw" $ whnf raw value
       , bench "wrap" $ whnf wrap value
       , bench "listM" $ whnf listM value
-      , bench "list" $ whnf (\x -> list x) value
+      , bench "list" $ whnf list value
       , bench "pipe" $ whnf pipe value
       ]
   , bgroup "short"
-      [ bench "raw" $ whnf (\x -> shraw x) value
-      , bench "wrap" $ whnf shwrap value
-      , bench "listM" $ whnf shSeries value
-      , bench "list" $ whnf (\x -> shlist x) value
-      , bench "pipe" $ whnf shpipe value
+      [ bench "raw" $ whnf sh_raw  value
+      , bench "wrap" $ whnf sh_wrap value
+      , bench "listM" $ whnf sh_series value
+      , bench "list" $ whnf sh_list value
+      , bench "pipe" $ whnf sh_pipe value
       ]
   , bgroup "shorter"
-       [ bench "raw" $ whnf (\x -> rr x)value
+       [ bench "raw" $ whnf rr value
        , bench "wrap" $ whnf rw value
        , bench "listM" $ whnf rlm value
-       , bench "list" $ whnf (\x -> rl x) value
+       , bench "list" $ whnf  rl value
        ]
 
   ]

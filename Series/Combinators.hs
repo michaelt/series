@@ -1,21 +1,45 @@
-{-# LANGUAGE LambdaCase, RankNTypes #-}
+{-# LANGUAGE LambdaCase, RankNTypes, BangPatterns #-}
 module Series.Combinators where
 import Series.Types
+
 import Control.Applicative 
 import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Morph
-import Control.Monad.Trans.Free ( FreeT(..), FreeF(Free) )
-import qualified Control.Monad.Trans.Free as Free  
 import Data.Functor.Identity
+
+import qualified Control.Monad.Trans.Free as Free  
+import Control.Monad.Trans.Free ( FreeT(..), FreeF(Free) )
 import qualified Control.Foldl as L
--- import Control.Foldl (Fold(..),FoldM(..))
 import Pipes 
 import Pipes.Internal 
 import GHC.Exts ( build )
+-- data FoldM m a b = forall x . FoldM (x -> a -> m x) (m x) (x -> m b)
 
+-- type Fold_ f m r = forall r'
+--                    .  (f r' -> r') 
+--                    -> (m r' -> r')
+--                    -> (r -> r') 
+--                    -> r'
 
 -- data Fold a b = forall x . Fold (x -> a -> x) x (x -> b)
+
+attach (L.Fold op seed out) = \(Fold phi) ->
+  do x <- phi (\(a :> mx) -> mx >>= \x -> return (op x a)) 
+              join 
+              (\_ -> return seed)
+     return (out x)
+
+attachM (L.FoldM op seed out) = \(Fold phi) -> 
+  do x <- phi (\(a :> mx) -> mx >>= \x -> op x a)
+              join
+              (const seed)
+     out x
+
+foldL (L.Fold op seed out) ls = liftM out (loop seed ls) where
+  loop !x = \case Construct (a :> as) -> loop (op x a) as
+                  Wrap mas    -> mas >>= \as -> loop x as
+                  Done r      -> return x
 
 iterFold_ :: (Monad m) =>  Fold_ f m a -> (f (m a) -> m a) -> m a
 iterFold_ phi alg = phi alg join return

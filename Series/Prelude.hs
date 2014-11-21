@@ -6,68 +6,6 @@ import Prelude hiding (map, filter, drop, take, sum
                       , iterate, repeat, replicate, splitAt
                       , takeWhile)
 
-buildSeriesx
-  :: ((f (Series f m r) -> Series f m r)
-      -> (m1 (Series f1 m1 r1) -> Series f1 m1 r1)
-      -> (r2 -> Series f2 m2 r2)
-      -> t)
-     -> t
-buildSeriesx = \phi -> phi Construct Wrap Done
-{-# INLINE[1] buildSeriesx #-}
-
-foldSeriesx
-  :: (Functor f, Monad m) =>
-     Series f m t -> (f b -> b) -> (m b -> b) -> (t -> b) -> b
-foldSeriesx = \lst construct wrap done ->
-   let loop = \case Wrap mlst  -> wrap (liftM loop mlst) 
-                    Construct flst -> construct (fmap loop flst)
-                    Done r     -> done r
-   in  loop lst 
-{-# INLINE[1] foldSeriesx #-}
-
-{-# RULES
- 
-  "foldSeriesx/buildSeriesx" forall phi.
-    foldSeriesx (buildSeriesx phi) = phi
-    
-    #-}
---
-
-{-# RULES
- 
-  "foldSeriesx/buildSeriesxsat" forall phi x.
-    foldSeriesx (buildSeriesx phi) x = phi x
-    
-    #-}
-    
-
-{-# RULES
- 
-  "foldSeriesx/buildSeriesxsat2" forall phi x y.
-    foldSeriesx (buildSeriesx phi) x y = phi x y
-    
-    #-}
-
-{-# RULES
-
-      "foldSeriesx/buildSeriesxsat3" forall phi x y z.
-        foldSeriesx (buildSeriesx phi) x y z = phi x y z
-
-        #-}
--- -----
-buildSeries :: Fold f m r -> Series f m r 
-buildSeries = \(Fold phi) -> buildSeriesx phi
-{-# INLINE[1] buildSeries #-}
-
-foldSeries  :: (Functor f, Monad m) => Series f m t -> Fold f m t
-foldSeries = \lst -> Fold (foldSeriesx lst)
-{-# INLINE[1] foldSeries  #-}
-
-{-# RULES
- 
-  "foldSeries/buildSeries" forall phi.
-    foldSeries (buildSeries phi) = phi
-    #-}
 
 -- ---------------
 -- ---------------
@@ -370,7 +308,7 @@ drop = loop where
 dropF :: (Monad m) => Int -> Series (Of a) m r -> Series (Of a) m r
 dropF n = buildSeries . ldrop n . foldSeries
 {-# INLINE dropF #-}
---
+
 dropG :: (Monad m) => Int -> Series (Of a) m r -> Series (Of a) m r
 dropG = \n phi -> buildSeriesx (jdrop n (foldSeriesx phi))
 {-# INLINE dropG #-}

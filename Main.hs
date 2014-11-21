@@ -8,7 +8,9 @@ import qualified Prelude as P
 import Data.Functor.Identity
 import Control.Monad.Morph
 import System.Environment
-main = do (a:sn:_) <- getArgs -- pain where
+
+
+gain = do (a:sn:_) <- getArgs -- pain where
           let n = 1000 * read sn :: Int
           case a of  "f" -> f n
                      "g" -> g n
@@ -42,8 +44,7 @@ main = do (a:sn:_) <- getArgs -- pain where
                     (filter even
                    ((iterate (\x -> x+1) (10 :: Int) ) :: Series (Of Int) IO ())
                   )))))  >>= print
-                  
-                  
+
     l n = print $ P.sum (
       (P.takeWhile (< n)
        (P.drop 100
@@ -51,3 +52,10 @@ main = do (a:sn:_) <- getArgs -- pain where
          (P.filter even
         ((P.iterate (\x -> x+1) (10 :: Int) ) )
        )))))  + 1
+
+
+b = mapF show $ takeWhileF (< 14) $ dropF 1 
+              $ filterF even $ iterateF (\x -> x+1) (0 :: Int) 
+a = mapG show $ takeWhileG (< 14) $ dropG 1 
+              $ filterG even $ iterateG (\x -> x+1) (0 :: Int) 
+              
