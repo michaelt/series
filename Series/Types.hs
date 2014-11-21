@@ -107,6 +107,11 @@ instance Functor f => MFunctor (Fold f) where
   hoist trans phi = Fold (\construct wrap done -> 
     getFold phi construct (wrap . trans) done)
 
+-- -------------------------
+-- optimization operations:
+-- -------------------------
+
+-- wrapped case: 
 buildSeries :: Fold f m r -> Series f m r 
 buildSeries = \(Fold phi) -> phi Construct Wrap Done
 {-# INLINE[0] buildSeries #-}
@@ -121,14 +126,16 @@ foldSeries = \lst -> Fold (\construct wrap done ->
 
 -- The compiler has no difficulty with the rule for the wrapped case.
 -- I have not investigated whether the remaining newtype
--- constructor is acting as an impediment. 
+-- constructor is acting as an impediment. The stage [0] or [1]
+-- seems irrelevant in either case.
 
 {-# RULES
   "foldSeries/buildSeries" forall phi.
     foldSeries (buildSeries phi) = phi
     #-}
-    
--- ----
+
+-- unwrapped case: 
+
 buildSeriesx
   :: ((f (Series f m r) -> Series f m r)
       -> (m1 (Series f1 m1 r1) -> Series f1 m1 r1)
@@ -148,8 +155,11 @@ foldSeriesx = \lst construct wrap done ->
    in  loop lst 
 {-# INLINE[1] foldSeriesx #-}
 
--- the compiler seems to have trouble seeing these rules as applicable,
--- unlike those for foldSeries & buildSeries
+-- The compiler seems to have trouble seeing these rules as applicable,
+-- unlike those for foldSeries & buildSeries. Opaque arity is
+-- a plausible hypothesis when you know nothing yet.
+-- When the last rule is given, it is the one that fires.
+
 {-# RULES
  
   "foldSeriesx/buildSeriesx" forall phi.
@@ -179,5 +189,5 @@ foldSeriesx = \lst construct wrap done ->
         foldSeriesx (buildSeriesx phi) x y z = phi x y z
 
         #-}
--- -----
+
 
