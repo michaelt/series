@@ -25,24 +25,24 @@ data Of a b = !a :> b
     deriving (Data, Eq, Foldable, Functor, Ord,
               Read, Show, Traversable, Typeable)
 infixr 4 :>
-headOf (a :> b) = a
-tailOf (a :> b) = b
-mapHead f (a :> b) = f a :> b
 
 -- explicit Series/FreeT data type
 data Series f m r = Construct (f (Series f m r))
                  | Wrap (m (Series f m r))
                  | Done r
+                 deriving (Typeable)
 
 deriving instance (Show r, Show (m (Series f m r))
                   , Show (f (Series f m r))) => Show (Series f m r)
+deriving instance (Eq r, Eq (m (Series f m r))
+                  , Eq (f (Series f m r))) => Eq (Series f m r)
 
 instance (Functor f, Monad m) => Functor (Series f m) where
   fmap f = loop where
     loop = \case Construct f  -> Construct (fmap loop f)
                  Wrap m       -> Wrap (liftM loop m)
                  Done r       -> Done (f r)
-                 
+
 instance (Functor f, Monad m) => Monad (Series f m) where
   return = Done
   lst >>= f = loop lst where
@@ -107,14 +107,22 @@ instance Functor f => MFunctor (Fold f) where
   hoist trans phi = Fold (\construct wrap done -> 
     getFold phi construct (wrap . trans) done)
 
--- -------------------------
--- optimization operations:
--- -------------------------
+-- -------------------------------------
+-- optimization operations: wrapped case
+-- -------------------------------------
 
--- wrapped case: 
-buildSeries :: Fold f m r -> Series f m r 
-buildSeries = \(Fold phi) -> phi Construct Wrap Done
-{-# INLINE[0] buildSeries #-}
+-- 
+
+-- `foldSeries` is a flipped and wrapped variant of Atkey's 
+-- effectfulFold :: (Functor f, Monad m) =>
+--    (m x -> x) -> (r -> x) -> (f x -> x) -> Series f m r -> x
+-- modulo the 'Done' constructor, which implicitly restricts the 
+-- available class of Functors. 
+-- See http://bentnib.org/posts/2012-01-06-streams.html and 
+-- the (nightmarish) associated paper.
+
+-- Our plan is thus where possible to replace the datatype Series with
+-- the associated effectfulFold itself, wrapped as Fold
 
 foldSeries  :: (Functor f, Monad m) => Series f m t -> Fold f m t
 foldSeries = \lst -> Fold (\construct wrap done ->
@@ -123,6 +131,11 @@ foldSeries = \lst -> Fold (\construct wrap done ->
                    Done r         -> done r
   in  loop lst)
 {-# INLINE[0] foldSeries  #-}
+
+buildSeries :: Fold f m r -> Series f m r 
+buildSeries = \(Fold phi) -> phi Construct Wrap Done
+{-# INLINE[0] buildSeries #-}
+
 
 -- The compiler has no difficulty with the rule for the wrapped case.
 -- I have not investigated whether the remaining newtype
@@ -134,16 +147,9 @@ foldSeries = \lst -> Fold (\construct wrap done ->
     foldSeries (buildSeries phi) = phi
     #-}
 
--- unwrapped case: 
-
-buildSeriesx
-  :: ((f (Series f m r) -> Series f m r)
-      -> (m1 (Series f1 m1 r1) -> Series f1 m1 r1)
-      -> (r2 -> Series f2 m2 r2)
-      -> t)
-     -> t
-buildSeriesx = \phi -> phi Construct Wrap Done
-{-# INLINE[1] buildSeriesx #-}
+-- -------------------------------------
+-- optimization operations: wrapped case
+-- -------------------------------------
 
 foldSeriesx
   :: (Functor f, Monad m) =>
@@ -155,10 +161,16 @@ foldSeriesx = \lst construct wrap done ->
    in  loop lst 
 {-# INLINE[1] foldSeriesx #-}
 
+
+buildSeriesx = \phi -> phi Construct Wrap Done
+{-# INLINE[1] buildSeriesx #-}
+
 -- The compiler seems to have trouble seeing these rules as applicable,
 -- unlike those for foldSeries & buildSeries. Opaque arity is
 -- a plausible hypothesis when you know nothing yet.
--- When the last rule is given, it is the one that fires.
+-- When additional arguments are given to a rule, 
+-- the most saturated is the one that fires, 
+-- but it only fires where this one would.
 
 {-# RULES
  
@@ -166,28 +178,5 @@ foldSeriesx = \lst construct wrap done ->
     foldSeriesx (buildSeriesx phi) = phi
     
     #-}
-
-
-{-# RULES
- 
-  "foldSeriesx/buildSeriesxsat" forall phi x.
-    foldSeriesx (buildSeriesx phi) x = phi x
-    
-    #-}
-    
-
-{-# RULES
- 
-  "foldSeriesx/buildSeriesxsat2" forall phi x y.
-    foldSeriesx (buildSeriesx phi) x y = phi x y
-    
-    #-}
-
-{-# RULES
-
-      "foldSeriesx/buildSeriesxsat3" forall phi x y z.
-        foldSeriesx (buildSeriesx phi) x y z = phi x y z
-
-        #-}
 
 

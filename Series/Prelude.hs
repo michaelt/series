@@ -1,15 +1,16 @@
 {-# LANGUAGE LambdaCase, RankNTypes #-}
-module Series.Fusion where
+module Series.Prelude where
 import Series.Types
 import Control.Monad hiding (filterM, mapM)
+import Data.Functor.Identity
 import Prelude hiding (map, filter, drop, take, sum
                       , iterate, repeat, replicate, splitAt
-                      , takeWhile)
+                      , takeWhile, enumFrom, enumFromTo)
 
 
 -- ---------------
 -- ---------------
--- Data.Series 
+-- Prelude
 -- ---------------
 -- ---------------
 
@@ -490,3 +491,38 @@ takeWhileF pred = buildSeries . ltakeWhile pred . foldSeries
 takeWhileG :: Monad m => (a -> Bool) -> Series (Of a) m r -> Series (Of a) m ()
 takeWhileG = \pred phi -> buildSeriesx  (jtakeWhile pred  (foldSeriesx phi))
 {-# INLINE takeWhileG #-}
+
+
+-- --------
+type List a = Series (Of a) Identity ()
+stdinLn = Wrap loop where
+  loop = getLine >>= \str -> return (Construct (str :> Wrap loop))
+
+jstdinLn = \construct wrap done -> 
+     let loop = wrap $ getLine >>= \str -> return (construct (str :> loop))
+     in loop 
+
+-- ------- 
+lenumFrom n = \construct wrap done -> 
+      let loop m = construct (m :> loop (succ m)) in loop n
+        
+lenumFromTo n m = \construct wrap done -> 
+      let loop k = if k <= m then construct (k :> loop (succ k)) 
+                             else done ()
+      in loop n
+
+lenumFromToStep n m k = \construct wrap done -> 
+            let loop p = if p <= k then construct (p :> loop (p + m)) 
+                                   else done ()
+            in loop n
+--
+lenumFromStepN a b k = \construct wrap done -> 
+            let loop 0 p = done ()
+                loop j p = construct (p :> loop (j-1) (p + b)) 
+            in loop a k
+
+enumFrom n = buildSeries (Fold (lenumFrom n))
+enumFromTo n m = buildSeries (Fold (lenumFromTo n m))
+enumFromToStep n m k = buildSeries (Fold (lenumFromToStep n m k))
+enumFromStepN k m n = buildSeries (Fold (lenumFromStepN n m k))
+{-# INLINE enumFromStepN #-}
