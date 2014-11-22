@@ -1,6 +1,27 @@
 series
 ======
 
+The `Series` type defined here is an attempt to represent 
+effectful sequences in the style of `Pipes.Producer`, 
+"`ListT` done right", `FreeT ((,) a)` and the like.
+
+Some benchmarks on more and less complex compositions of
+functions can be seen [here](http://michaelt.github.io/bench/seriesbench.html). 
+Those marked 'fused' are for functions defined through the fusion
+framework described below; those marked 'naive' are just ordinary recursive
+definitions using the constructors of the Series datatype. The corresponding
+programs written with `Data.List` and `Data.Vector.Unboxed` are marked 'list'
+and 'vector'
+
+The benchmarks are pure and thus use `Series (Of a) Identity ()`, which is 
+isomorphic to Haskell lists.  It is interesting that the present 
+fusion framework is *always* faster than Data.List. It is also more reliable 
+than both vector and Data.List (though vector is of course much 
+faster where fusion succeeds.)  But these cases are perhaps 
+somewhat stylized. I am also surprised so far that newtype wrapping 
+makes the fusion rules infinitely more reliable.
+
+----
 
 The standard `FreeT` module is irremediably slow and lacks
 crucial combinators. In particular it does not develop the
@@ -11,23 +32,6 @@ important case in which the functor -- e.g `(a, _)`, here
 represent *effectful sequences* of various sorts, such as the
 `Pipes.Producer` type ( \~ `FreeT ((,) a) m r` \~
 `FreeT (Of a) m r` \~ `Series (Of a) m r`)
-
------
-
-Some benchmarks on more and less complex compositions of
-functions can be seen here
-http://michaelt.github.io/bench/seriesbench.html Those marked
-'fused' are for functions defined through the fusion
-framework described below; those marked 'naive' are just ordinary recursive
-definitions using the constructors of the Series datatype.
-
-It is interesting that the present fusion framework is always faster
-than Data.List, and more reliable than that for vector and
-Data.List, but these cases are perhaps somewhat stylized. I am
-also surprised so far that newtype wrapping makes the fusion
-rules infinitely more reliable.
-
-----
 
 
 In some respects we follow the model of `ertes`'s experimental
