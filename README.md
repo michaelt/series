@@ -1,6 +1,7 @@
 series
 ======
 
+
 The standard `FreeT` module is irremediably slow and lacks
 crucial combinators. In particular it does not develop the
 important case in which the functor -- e.g `(a, _)`, here
@@ -9,7 +10,25 @@ important case in which the functor -- e.g `(a, _)`, here
 `FreeT f m a` -- and thus can take any functor f -- the aim is to
 represent *effectful sequences* of various sorts, such as the
 `Pipes.Producer` type ( \~ `FreeT ((,) a) m r` \~
-`FreeT (Of a) m r` `Series (Of a) m r`)
+`FreeT (Of a) m r` \~ `Series (Of a) m r`)
+
+-----
+
+Some benchmarks on more and less complex compositions of
+functions can be seen here
+http://michaelt.github.io/bench/seriesbench.html Those marked
+'fused' are for functions defined through the fusion
+framework described below; those marked 'naive' are just ordinary recursive
+definitions using the constructors of the Series datatype.
+
+It is interesting that the present fusion framework is always faster
+than Data.List, and more reliable than that for vector and
+Data.List, but these cases are perhaps somewhat stylized. I am
+also surprised so far that newtype wrapping makes the fusion
+rules infinitely more reliable.
+
+----
+
 
 In some respects we follow the model of `ertes`'s experimental
 [`fuse` package](http://hub.darcs.net/ertes/fuse), which may hold
@@ -103,15 +122,3 @@ figure it out. The definition of `pretake` above is an example.
 Our effort is to define every function on a `Series/FreeT` as 
 such a fold.
 
-Some benchmarks on more and less complex compositions of
-functions can be seen here
-http://michaelt.github.io/bench/seriesbench.html Those marked
-'seriesbuildfoldr' are for functions defined through the fusion
-framework; those marked 'seriesnaive' are just ordinary recursive
-definitions using the Series datatype.
-
-It is interesting that the present framework is always faster
-than Data.List, and more reliable than that for vector and
-Data.List, but these cases are perhaps somewhat stylized. I am
-also surprised so far that newtype wrapping makes the fusion
-rules infinitely more reliable.
