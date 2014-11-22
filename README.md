@@ -23,7 +23,7 @@ fusion framework is *always* faster than Data.List. It is also more reliable
 than both vector and Data.List (though vector is of course much 
 faster where fusion succeeds.)  But these cases are perhaps 
 somewhat stylized. I am also surprised so far that newtype wrapping 
-makes the fusion rules infinitely more reliable.
+makes the fusion rules more reliable.
 
 ----
 
