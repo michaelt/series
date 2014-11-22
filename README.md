@@ -6,7 +6,11 @@ effectful sequences in the style of `Pipes.Producer`,
 "`ListT` done right", `FreeT ((,) a)` and the like.
 
 Some benchmarks on more and less complex compositions of
-functions can be seen [here](http://michaelt.github.io/bench/seriesbench.html). 
+functions can be seen here:
+
+![ ](http://michaelt.github.io/images/bench.png)
+
+The rest of the report is [here](http://michaelt.github.io/bench/seriesbench.html). 
 Those marked 'fused' are for functions defined through the fusion
 framework described below; those marked 'naive' are just ordinary recursive
 definitions using the constructors of the Series datatype. The corresponding
