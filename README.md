@@ -1,31 +1,33 @@
 series
 ======
 
-The `Series` type defined here is an attempt to represent 
-effectful sequences in the style of `Pipes.Producer`, 
-"`ListT` done right", `FreeT ((,) a)` and the like.
+The `Series` type defined here is an attempt to represent
+effectful sequences in the style of `Pipes.Producer`, "`ListT`
+done right", `FreeT ((,) a)` and the like.
 
 Some benchmarks on more and less complex compositions of
 functions can be seen here:
 
-![ ](http://michaelt.github.io/images/bench.png)
+![ ](http://michaelt.github.io/images/bench.png)
 
-The rest of the report is [here](http://michaelt.github.io/bench/seriesbench.html). 
-Those marked 'fused' are for functions defined through the fusion
-framework described below; those marked 'naive' are just ordinary recursive
-definitions using the constructors of the Series datatype. The corresponding
-programs written with `Data.List` and `Data.Vector.Unboxed` are marked 'list'
-and 'vector'
+The rest of the report is
+[here](http://michaelt.github.io/bench/seriesbench.html). Lines
+marked 'f.g.h/fused' bench compositions of functions defined
+through the fusion framework described below; those marked
+'f.g.h/naive' bench compositions of functions given ordinary
+recursive definitions using the constructors of the Series
+datatype. The corresponding programs written with `Data.List` and
+`Data.Vector.Unboxed` are marked 'list' and 'vector'
 
-The benchmarks are pure and thus use `Series (Of a) Identity ()`, which is 
-isomorphic to Haskell lists.  It is interesting that the present 
-fusion framework is *always* faster than Data.List. It is also more reliable 
-than both vector and Data.List (though vector is of course much 
-faster where fusion succeeds.)  But these cases are perhaps 
-somewhat stylized. I am also surprised so far that newtype wrapping 
-makes the fusion rules more reliable.
+The benchmarks are pure and thus use `Series (Of a) Identity ()`,
+which is isomorphic to Haskell lists. It is interesting that the
+present fusion framework is *always* faster than Data.List. It is
+also more reliable than both vector and Data.List (though vector
+is of course much faster where fusion succeeds.) But these cases
+are perhaps somewhat stylized. I am also surprised so far that
+newtype wrapping makes the fusion rules more reliable.
 
-----
+-----------------------------------------------------------------
 
 The standard `FreeT` module is irremediably slow and lacks
 crucial combinators. In particular it does not develop the
@@ -36,7 +38,6 @@ important case in which the functor -- e.g `(a, _)`, here
 represent *effectful sequences* of various sorts, such as the
 `Pipes.Producer` type ( \~ `FreeT ((,) a) m r` \~
 `FreeT (Of a) m r` \~ `Series (Of a) m r`)
-
 
 In some respects we follow the model of `ertes`'s experimental
 [`fuse` package](http://hub.darcs.net/ertes/fuse), which may hold
@@ -76,9 +77,10 @@ package use an inexplicably more complex type; in `free` it is
          runFT :: forall r. (a -> m r) -> (f (m r) -> m r) -> m r
          }
 
-As reflection on Atkey's discussion will I think show, this constrains
-possibilities of definition unnecessarily. Thus we would like to 
-define `take :: Int -> Fold (Of a) m r -> Fold (Of a) m r`  by 
+As reflection on Atkey's discussion will I think show, this
+constrains possibilities of definition unnecessarily. Thus we
+would like to define
+`take :: Int -> Fold (Of a) m r -> Fold (Of a) m r` by
 instantiating the rank-2 fold at `Int -> Fold_ (Of a) m r`:
 
     take :: (Monad m, Functor f) => Int -> Series f m r -> Series f m ()
@@ -93,18 +95,20 @@ instantiating the rank-2 fold at `Int -> Fold_ (Of a) m r`:
         {-# INLINE pretake #-}
     {-# INLINE take #-}
 
-
-At the moment, then, all functions are thus basically of one of the forms
+At the moment, then, all functions are thus basically of one of
+the forms
 
         build . wrapped-churched-definition . fold
         wrapped-churched-definition . fold
         build . wrapped-churched-definition
         
-so that we can eliminate `fold . build` upon composition, 
-in the style of the `stream . unstream  = id` rule
-in `vector`. This seems to account for the success of the style in getting the
+
+so that we can eliminate `fold . build` upon composition, in the
+style of the `stream . unstream  = id` rule in `vector`. This
+seems to account for the success of the style in getting the
 compiler to recognize fusion opportunities, attested by the
-benchmarks so far and by counting appearances with `-ddump-rule-firings`
+benchmarks so far and by counting appearances with
+`-ddump-rule-firings`
 
 Of the two principal fusion operations,
 
@@ -126,7 +130,6 @@ http://bentnib.org/posts/2012-01-06-streams.html and the
 (gruesomely technical) associated paper. The examples of
 implementing functions by way of `effectfulFold` are extremely
 surprising and illuminating and are emulated here, where I can
-figure it out. The definition of `pretake` above is an example. 
-Our effort is to define every function on a `Series/FreeT` as 
+figure it out. The definition of `pretake` above is an example.
+Our effort is to define every function on a `Series/FreeT` as
 such a fold.
-
