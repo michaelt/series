@@ -1,15 +1,20 @@
 import Series.Types
 import Series.Combinators
-import Series.Fusion
+import Series.Prelude
 import Prelude hiding (map, filter, drop, take, sum
                       , iterate, repeat, replicate
                       , splitAt, mapM, takeWhile)
 import qualified Prelude as P
 import Data.Functor.Identity
+import Control.Monad
 import Control.Monad.Morph
 import System.Environment
-
-
+import System.IO 
+main = getFold (foldSeries stdinLn) 
+                   (\(str :> x) -> putStrLn str >> x) 
+                   join 
+                   return
+{-
 gain = do (a:sn:_) <- getArgs -- pain where
           let n = 1000 * read sn :: Int
           case a of  "f" -> f n
@@ -59,3 +64,4 @@ b = mapF show $ takeWhileF (< 14) $ dropF 1
 a = mapG show $ takeWhileG (< 14) $ dropG 1 
               $ filterG even $ iterateG (\x -> x+1) (0 :: Int) 
               
+-}

@@ -4,7 +4,7 @@
              DeriveFunctor, DeriveTraversable #-}
 {-# LANGUAGE UndecidableInstances #-} -- for Series show instance
 module Series.Types where
-  
+
 import Control.Monad
 import Control.Monad.Trans
 import Control.Applicative 
@@ -32,6 +32,7 @@ data Series f m r = Construct (f (Series f m r))
                  | Done r
                  deriving (Typeable)
 
+
 deriving instance (Show r, Show (m (Series f m r))
                   , Show (f (Series f m r))) => Show (Series f m r)
 deriving instance (Eq r, Eq (m (Series f m r))
@@ -45,11 +46,16 @@ instance (Functor f, Monad m) => Functor (Series f m) where
 
 instance (Functor f, Monad m) => Monad (Series f m) where
   return = Done
-  lst >>= f = loop lst where
-    loop = \case Construct f -> Construct (fmap loop f)
-                 Wrap m      -> Wrap (liftM loop m)
-                 Done r      -> f r
-                 
+  {-# INLINE return #-}
+  (>>=) = flip seriesBind where
+    seriesBind f = buildSeries . foldBind (foldSeries . f) . foldSeries 
+    {-# INLINE seriesBind #-}
+  {-# INLINE (>>=) #-}
+    -- loop lst where
+    -- loop = \case Construct f -> Construct (fmap loop f)
+    --              Wrap m      -> Wrap (liftM loop m)
+    --              Done r      -> f r
+
 instance (Functor f, Monad m) => Applicative (Series f m) where
   pure = Done; (<*>) = ap
   
@@ -62,6 +68,9 @@ instance Functor f => MFunctor (Series f) where
                  Wrap m      -> Wrap (trans (liftM loop m))
                  Done r      -> Done r
 
+instance (MonadIO m, Functor f) => MonadIO (Series f m) where
+  liftIO = Wrap . liftM Done . liftIO 
+  
 -- church encodings:
 -- ----- unwrapped synonym:
 type Fold_ f m r = forall r'
@@ -82,13 +91,16 @@ instance Functor (Fold f m) where
 
 instance Monad (Fold f m) where
   return r = Fold (\construct wrap done -> done r) 
-  phi >>= f = Fold (\construct wrap done -> 
-    getFold phi construct 
-                wrap  
-                (\a -> getFold (f a) construct 
-                                     wrap 
-                                     done))
+  (>>=) = flip foldBind
+  {-# INLINE (>>=) #-}
 
+foldBind f phi = Fold (\construct wrap done -> 
+  getFold phi construct 
+              wrap  
+              (\a -> getFold (f a) construct 
+                                   wrap 
+                                   done))
+{-# INLINE foldBind #-}
 instance Applicative (Fold f m) where
   pure r = Fold (\construct wrap done -> done r) 
   phi <*> psi = Fold (\construct wrap done -> 
@@ -106,6 +118,14 @@ instance MonadTrans (Fold f) where
 instance Functor f => MFunctor (Fold f) where
   hoist trans phi = Fold (\construct wrap done -> 
     getFold phi construct (wrap . trans) done)
+
+instance (MonadIO m, Functor f) => MonadIO (Fold f m) where
+  liftIO io = Fold (\construct wrap done -> 
+             wrap (liftM done (liftIO io))
+                )
+  {-# INLINE liftIO #-}
+
+
 
 -- -------------------------------------
 -- optimization operations: wrapped case

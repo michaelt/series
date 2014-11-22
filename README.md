@@ -8,13 +8,15 @@ important case in which the functor -- e.g `(a, _)`, here
 `Series f m a` type here aspires to be an optimized
 `FreeT f m a` -- and thus can take any functor f -- the aim is to
 represent *effectful sequences* of various sorts, such as the
-`Producer` type in `pipes` (= `FreeT ((,) a) m r` =
-`Series (Of a) m r`)
+`Pipes.Producer` type ( \~ `FreeT ((,) a) m r` \~
+`FreeT (Of a) m r` `Series (Of a) m r`)
 
 In some respects we follow the model of `ertes`'s experimental
 [`fuse` package](http://hub.darcs.net/ertes/fuse), which may hold
 more interest; in particular the device of calling the strict
 pair `Of a b` is found there; his `FreeT` type is called `List`.
+We are also indirectly following some remarks of Atkey mentioned
+below.
 
 The first optimization is in the datatype `Series`:
 
@@ -23,8 +25,9 @@ The first optimization is in the datatype `Series`:
                       | Done r
 
 It requires a suitable quotient to be seen as isomorphic to
-`FreeT`. This will lead to some correctness subtleties not yet
-resolved, but the procedure is familiar.
+`FreeT`. This will lead to some well-understood correctness
+subtleties; they must be handled by resisting direct use of the
+constructors etc., but the procedure is familiar.
 
 The next is to develop an optimization infrastructure in terms of
 a corresponding Church encoded type. Ideally this will follow the
@@ -32,24 +35,38 @@ model of `Data.List`. At the moment, it is using two
 easier-to-implement variants in which a church encoded version of
 `Series`, i.e.:
 
-    type Fold_ f m r = forall r'
-                       .  (f r' -> r') 
-                       -> (m r' -> r')
-                       -> (r -> r') 
-                       -> r'
+    type Fold_ f m a = 
+       forall r. (f r -> r) -> (m r -> r) -> (a -> r) -> r
 
 or rather
 
-    newtype Fold f m r = Fold (getFold :: Fold_ f m r)
+    newtype Fold f m r = Fold {getFold :: Fold_ f m r}
 
-is used. (`ertes` and the Church-encoded module of the `free`
-package use an inexplicably more complex type.) At the moment,
-then, all functions are basically of the form
+is used. `ertes` and the Church-encoded module of the `free`
+package use an inexplicably more complex type; in `free` it is
+
+    newtype FT f m a = FT {
+         runFT :: forall r. (a -> m r) -> (f (m r) -> m r) -> m r
+         }
+
+As reflection on Atkey's discussion will I think show, this constrains
+possibilities of definition unnecessarily. Thus we would like to 
+define `take :: Int -> Fold (Of a) m r -> Fold (Of a) m r`  by 
+instantiating the rank-2 fold at `Int -> Fold_ (Of a) m r`:
+
+    pretake :: Monad m => Int -> Fold_ (Of a) m r -> Fold_ (Of a) m ()
+    pretake = \n phi construct wrap done -> phi 
+          (\(a :> fn) n -> if n <= 0 then done () 
+                                     else construct (a :> (fn (n-1))))
+          (\m n -> if n <= 0 then done () 
+                             else wrap (liftM ($n) m)) 
+          (\r n -> done ()) 
+          n
+
+At the moment, then, all functions are basically of the form
 `build . churched-definition . fold` so that we can eliminate
 `fold . build` in the style of the `stream . unstream  = id` rule
-in `vector`.
-
-Of the two principal fusion operations,
+in `vector`. Of the two principal fusion operations,
 
     buildSeries :: Fold f m r -> Series f m r 
     buildSeries = \(Fold phi) -> phi Construct Wrap Done
@@ -62,14 +79,16 @@ the latter is a flipped and wrapped variant of Atkey's
 
     effectfulFold :: (Functor f, Monad m) =>
        (m x -> x) -> (r -> x) -> (f x -> x) -> Series f m r -> x
-       
 
 (modulo the 'Done' constructor, which implicitly restricts the
 available class of Functors.) See
-http://bentnib.org/posts/2012-01-06-streams.html and the (distressingly
-technical) associated paper. The examples of implementing
-functions by way of `effectfulFold` are extremely surprising and
-illuminating and are emulated here, where I can figure it out.
+http://bentnib.org/posts/2012-01-06-streams.html and the
+(gruesomely technical) associated paper. The examples of
+implementing functions by way of `effectfulFold` are extremely
+surprising and illuminating and are emulated here, where I can
+figure it out. The definition of `pretake` above is an example. 
+Our effort is to define every function on a `Series/FreeT` as 
+such a fold.
 
 Some benchmarks on more and less complex compositions of
 functions can be seen here

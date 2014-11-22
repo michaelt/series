@@ -3,6 +3,8 @@ module Series.Prelude where
 import Series.Types
 import Control.Monad hiding (filterM, mapM)
 import Data.Functor.Identity
+import Control.Monad.Trans
+import qualified System.IO as IO
 import Prelude hiding (map, filter, drop, take, sum
                       , iterate, repeat, replicate, splitAt
                       , takeWhile, enumFrom, enumFromTo)
@@ -13,6 +15,21 @@ import Prelude hiding (map, filter, drop, take, sum
 -- Prelude
 -- ---------------
 -- ---------------
+
+yield :: Monad m => a -> Series (Of a) m ()
+yield r = Construct (r :> Done ())
+
+jyield :: Monad m => a -> Fold_ (Of a) m ()
+jyield r = \construct wrap done -> construct (r :> done ())
+{-# INLINE jyield #-}
+
+lyield :: Monad m => a -> Fold (Of a) m ()
+lyield r = Fold (jyield r)
+{-# INLINE lyield #-}
+
+yieldF :: Monad m => a -> Series (Of a) m ()
+yieldF = buildSeries . lyield
+{-# INLINE yieldF #-}
 
 -- ---------------
 -- sum 
@@ -439,8 +456,6 @@ takeF n = buildSeries . ltake n . foldSeries
 takeG :: Monad m => Int -> Series (Of a) m r -> Series (Of a) m ()
 takeG = \n phi -> buildSeriesx (jtake n  (foldSeriesx phi))
 {-# INLINE takeG #-}
--- 
--- 
 
 -- replicate :: Monad m => Int -> a -> Series (Of a) m ()
 -- replicate n x = loop n where
@@ -493,14 +508,7 @@ takeWhileG = \pred phi -> buildSeriesx  (jtakeWhile pred  (foldSeriesx phi))
 {-# INLINE takeWhileG #-}
 
 
--- --------
-type List a = Series (Of a) Identity ()
-stdinLn = Wrap loop where
-  loop = getLine >>= \str -> return (Construct (str :> Wrap loop))
 
-jstdinLn = \construct wrap done -> 
-     let loop = wrap $ getLine >>= \str -> return (construct (str :> loop))
-     in loop 
 
 -- ------- 
 lenumFrom n = \construct wrap done -> 
@@ -526,3 +534,42 @@ enumFromTo n m = buildSeries (Fold (lenumFromTo n m))
 enumFromToStep n m k = buildSeries (Fold (lenumFromToStep n m k))
 enumFromStepN k m n = buildSeries (Fold (lenumFromStepN n m k))
 {-# INLINE enumFromStepN #-}
+
+-- ---------------------------------------
+-- IO fripperies copped from Pipes.Prelude
+-- ---------------------------------------
+
+type List a = Series (Of a) Identity ()
+
+-- stdinLn = Wrap loop where
+--   loop = getLine >>= \str -> return (Construct (str :> Wrap loop))
+-- 
+-- jstdinLn = \construct wrap done -> 
+--      let loop = wrap $ getLine >>= \str -> return (construct (str :> loop))
+--      in loop 
+--
+stdinLn :: MonadIO m => Series (Of String) m ()
+stdinLn = fromHandle IO.stdin
+{-# INLINABLE stdinLn #-}
+
+-- | 'read' values from 'IO.stdin', ignoring failed parses
+readLn :: (MonadIO m, Read a) => Series (Of a) m ()
+readLn = map read stdinLn
+{-# INLINABLE readLn #-}
+
+{-| Read 'String's from a 'IO.Handle' using 'IO.hGetLine'
+
+    Terminates on end of input
+-}
+fromHandle :: MonadIO m => IO.Handle -> Series (Of String) m ()
+fromHandle h = go
+  where
+    go = do
+        eof <- liftIO $ IO.hIsEOF h
+        unless eof $ do
+            str <- liftIO $ IO.hGetLine h
+            yield str
+            go
+{-# INLINABLE fromHandle #-}     
+--
+
