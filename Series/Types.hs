@@ -73,58 +73,59 @@ instance (MonadIO m, Functor f) => MonadIO (Series f m) where
   
 -- church encodings:
 -- ----- unwrapped synonym:
-type Fold_ f m r = forall r'
+type Folding_ f m r = forall r'
                    .  (f r' -> r') 
                    -> (m r' -> r')
                    -> (r -> r') 
                    -> r'
 -- ------ wrapped:
-newtype Fold f m r = Fold {getFold :: Fold_ f m r  }
+newtype Folding f m r = Folding {getFolding :: Folding_ f m r  }
 
 -- these should perhaps be expressed with
--- predefined combinators for Fold_
-instance Functor (Fold f m) where
-  fmap f phi = Fold (\construct wrap done -> 
-    getFold phi construct 
+-- predefined combinators for Folding_
+instance Functor (Folding f m) where
+  fmap f phi = Folding (\construct wrap done -> 
+    getFolding phi construct 
                 wrap 
                 (done . f))
 
-instance Monad (Fold f m) where
-  return r = Fold (\construct wrap done -> done r) 
+instance Monad (Folding f m) where
+  return r = Folding (\construct wrap done -> done r) 
   (>>=) = flip foldBind
   {-# INLINE (>>=) #-}
 
-foldBind f phi = Fold (\construct wrap done -> 
-  getFold phi construct 
+foldBind f phi = Folding (\construct wrap done -> 
+  getFolding phi construct 
               wrap  
-              (\a -> getFold (f a) construct 
+              (\a -> getFolding (f a) construct 
                                    wrap 
                                    done))
 {-# INLINE foldBind #-}
-instance Applicative (Fold f m) where
-  pure r = Fold (\construct wrap done -> done r) 
-  phi <*> psi = Fold (\construct wrap done -> 
-    getFold phi construct 
+instance Applicative (Folding f m) where
+  pure r = Folding (\construct wrap done -> done r) 
+  phi <*> psi = Folding (\construct wrap done -> 
+    getFolding phi construct 
                 wrap 
-                (\f -> getFold psi construct 
+                (\f -> getFolding psi construct 
                                    wrap 
                                    (\a -> done (f a))))
 
-instance MonadTrans (Fold f) where
-  lift ma = Fold (\constr wrap done -> 
+instance MonadTrans (Folding f) where
+  lift ma = Folding (\constr wrap done -> 
     wrap (liftM done ma))
 
 
-instance Functor f => MFunctor (Fold f) where
-  hoist trans phi = Fold (\construct wrap done -> 
-    getFold phi construct (wrap . trans) done)
+instance Functor f => MFunctor (Folding f) where
+  hoist trans phi = Folding (\construct wrap done -> 
+    getFolding phi construct (wrap . trans) done)
 
-instance (MonadIO m, Functor f) => MonadIO (Fold f m) where
-  liftIO io = Fold (\construct wrap done -> 
+instance (MonadIO m, Functor f) => MonadIO (Folding f m) where
+  liftIO io = Folding (\construct wrap done -> 
              wrap (liftM done (liftIO io))
                 )
   {-# INLINE liftIO #-}
 
+type List a = Series (Of a) Identity ()
 
 
 -- -------------------------------------
@@ -134,7 +135,7 @@ instance (MonadIO m, Functor f) => MonadIO (Fold f m) where
 -- 
 
 -- `foldSeries` is a flipped and wrapped variant of Atkey's 
--- effectfulFold :: (Functor f, Monad m) =>
+-- effectfulFolding :: (Functor f, Monad m) =>
 --    (m x -> x) -> (r -> x) -> (f x -> x) -> Series f m r -> x
 -- modulo the 'Done' constructor, which implicitly restricts the 
 -- available class of Functors. 
@@ -142,18 +143,18 @@ instance (MonadIO m, Functor f) => MonadIO (Fold f m) where
 -- the (nightmarish) associated paper.
 
 -- Our plan is thus where possible to replace the datatype Series with
--- the associated effectfulFold itself, wrapped as Fold
+-- the associated effectfulFolding itself, wrapped as Folding
 
-foldSeries  :: (Functor f, Monad m) => Series f m t -> Fold f m t
-foldSeries = \lst -> Fold (\construct wrap done ->
+foldSeries  :: (Functor f, Monad m) => Series f m t -> Folding f m t
+foldSeries = \lst -> Folding (\construct wrap done ->
   let loop = \case Wrap mlst      -> wrap (liftM loop mlst) 
                    Construct flst -> construct (fmap loop flst)
                    Done r         -> done r
   in  loop lst)
 {-# INLINE[0] foldSeries  #-}
 
-buildSeries :: Fold f m r -> Series f m r 
-buildSeries = \(Fold phi) -> phi Construct Wrap Done
+buildSeries :: Folding f m r -> Series f m r 
+buildSeries = \(Folding phi) -> phi Construct Wrap Done
 {-# INLINE[0] buildSeries #-}
 
 

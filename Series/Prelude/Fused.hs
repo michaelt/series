@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase, RankNTypes #-}
-module Series.Prelude where
+module Series.Prelude.Fused where
 import Series.Types
 import Control.Monad hiding (filterM, mapM)
 import Data.Functor.Identity
@@ -15,125 +15,135 @@ import Prelude hiding (map, filter, drop, take, sum
 -- Prelude
 -- ---------------
 -- ---------------
+-- 
+-- yield :: Monad m => a -> Series (Of a) m ()
+-- yield r = Construct (r :> Done ())
 
-yield :: Monad m => a -> Series (Of a) m ()
-yield r = Construct (r :> Done ())
-
-jyield :: Monad m => a -> Fold_ (Of a) m ()
+jyield :: Monad m => a -> Folding_ (Of a) m ()
 jyield r = \construct wrap done -> construct (r :> done ())
 {-# INLINE jyield #-}
 
-lyield :: Monad m => a -> Fold (Of a) m ()
-lyield r = Fold (jyield r)
+lyield :: Monad m => a -> Folding (Of a) m ()
+lyield r = Folding (jyield r)
 {-# INLINE lyield #-}
 
-yieldF :: Monad m => a -> Series (Of a) m ()
-yieldF = buildSeries . lyield
-{-# INLINE yieldF #-}
+yield :: Monad m => a -> Series (Of a) m ()
+yield = buildSeries . lyield
+{-# INLINE yield #-}
 
 -- ---------------
 -- sum 
 -- ---------------
-lsum :: (Monad m, Num a) => Fold (Of a) m () -> m a
-lsum = \phi -> jsum (getFold phi)
+lsum :: (Monad m, Num a) => Folding (Of a) m () -> m a
+lsum = \phi -> jsum (getFolding phi)
 {-# INLINE lsum #-}
 
-jsum :: (Monad m, Num a) => Fold_ (Of a) m () -> m a
+jsum :: (Monad m, Num a) => Folding_ (Of a) m () -> m a
 jsum  = \phi -> phi (\(n :> mm) -> mm >>= \m -> return (m+n))
                     join
                     (\_ -> return 0) 
 {-# INLINE jsum #-}
+-- sum :: (Monad m, Num a) => Series (Of a) m () -> m a
+-- sum = loop where
+--   loop = \case Construct (a :> as) -> liftM (a+) (loop as)
+--                Wrap m -> m >>= loop
+--                Done r -> return 0
+
 sum :: (Monad m, Num a) => Series (Of a) m () -> m a
-sum = loop where
-  loop = \case Construct (a :> as) -> liftM (a+) (loop as)
-               Wrap m -> m >>= loop
-               Done r -> return 0
-
-sumF :: (Monad m, Num a) => Series (Of a) m () -> m a
-sumF  = lsum . foldSeries 
-{-# INLINE sumF #-}
-
-sumG :: (Monad m, Num a) => Series (Of a) m () -> m a
-sumG  = \ls -> jsum (foldSeriesx ls)
-{-# INLINE sumG #-}
+sum  = lsum . foldSeries 
+{-# INLINE sum #-}
+-- 
+-- sumG :: (Monad m, Num a) => Series (Of a) m () -> m a
+-- sumG  = \ls -> jsum (foldSeriesx ls)
+-- {-# INLINE sumG #-}
 
 -- ---------------
 -- replicate 
 -- ---------------
 
-jreplicate :: Monad m => Int -> a -> Fold_ (Of a) m ()
+jreplicate :: Monad m => Int -> a -> Folding_ (Of a) m ()
 jreplicate n a = jtake n (jrepeat a)
 {-# INLINE jreplicate #-}
 
-lreplicate :: Monad m => Int -> a -> Fold (Of a) m ()
-lreplicate n a = Fold (jtake n (jrepeat a))
+lreplicate :: Monad m => Int -> a -> Folding (Of a) m ()
+lreplicate n a = Folding (jtake n (jrepeat a))
 {-# INLINE lreplicate #-}
 
+-- replicate :: Monad m => Int -> a -> Series (Of a) m ()
+-- replicate n a = loop n where
+--   loop 0 = Done ()
+--   loop m = Construct (a :> loop (m-1))
+
 replicate :: Monad m => Int -> a -> Series (Of a) m ()
-replicate n a = loop n where
-  loop 0 = Done ()
-  loop m = Construct (a :> loop (m-1))
+replicate n = take n . repeat
+ -- (Folding (\construct wrap done -> 
+ --   let loop 0 = done ()
+ --       loop m = construct (a :> loop (m-1))
+ --   in loop n))
+{-# INLINE replicate #-}
 
-replicateF :: Monad m => Int -> a -> Series (Of a) m ()
-replicateF n a = buildSeries (lreplicate n a)
-{-# INLINE replicateF #-}
+-- replicateG :: Monad m => Int -> a -> Series (Of a) m ()
+-- replicateG = \n a -> buildSeriesx (jreplicate n a)
+-- {-# INLINE replicateG #-}
 
-replicateG :: Monad m => Int -> a -> Series (Of a) m ()
-replicateG = \n a -> buildSeriesx (jreplicate n a)
-{-# INLINE replicateG #-}
-
-jreplicateM :: Monad m => Int -> m a -> Fold_ (Of a) m ()
+jreplicateM :: Monad m => Int -> m a -> Folding_ (Of a) m ()
 jreplicateM n a = jtake n (jrepeatM a)
+{-# INLINE jreplicateM #-}
 
-lreplicateM :: Monad m => Int -> m a -> Fold (Of a) m ()
-lreplicateM n a = Fold (jtake n (jrepeatM a))
+lreplicateM :: Monad m => Int -> m a -> Folding (Of a) m ()
+lreplicateM n a = Folding (jtake n (jrepeatM a))
+{-# INLINE lreplicateM #-}
 
 replicateM :: Monad m => Int -> m a -> Series (Of a) m ()
-replicateM n ma = loop n where 
-  loop 0 = Done ()
-  loop n = Wrap $ ma >>= \a -> return (Construct $ a :> loop (n-1))
-
+replicateM n a = buildSeries (lreplicateM n a)
+{-# INLINE replicateM #-}
+-- replicateM :: Monad m => Int -> m a -> Series (Of a) m ()
+-- replicateM n ma = loop n where 
+--   loop 0 = Done ()
+--   loop n = Wrap $ ma >>= \a -> return (Construct $ a :> loop (n-1))
+-- 
 
 
 -- ---------------
 -- iterate
 -- ---------------
-literate :: (a -> a) -> a -> Fold (Of a) m r
-literate f a = Fold (jiterate f a)
+literate :: (a -> a) -> a -> Folding (Of a) m r
+literate f a = Folding (jiterate f a)
 {-# INLINE literate #-}
 
-jiterate :: (a -> a) -> a -> Fold_ (Of a) m r
+jiterate :: (a -> a) -> a -> Folding_ (Of a) m r
 jiterate = \f a construct wrap done -> 
        construct (a :> jiterate f (f a) construct wrap done) 
 {-# INLINE jiterate #-}
+-- iterate :: (a -> a) -> a -> Series (Of a) m r
+-- iterate f = loop where
+--   loop a' = Construct (a' :> loop (f a'))
+
 iterate :: (a -> a) -> a -> Series (Of a) m r
-iterate f = loop where
-  loop a' = Construct (a' :> loop (f a'))
+iterate f  = buildSeries . literate f 
+{-# INLINE iterate #-}
 
-iterateF :: (a -> a) -> a -> Series (Of a) m r
-iterateF f  = buildSeries . literate f 
-{-# INLINE iterateF #-}
+-- iterateG :: (a -> a) -> a -> Series (Of a) m r
+-- iterateG = \f a -> buildSeriesx (jiterate f a)
+-- {-# INLINE iterateG #-}
 
-iterateG :: (a -> a) -> a -> Series (Of a) m r
-iterateG = \f a -> buildSeriesx (jiterate f a)
-{-# INLINE iterateG #-}
-
-jiterateM :: Monad m => (a -> m a) -> m a -> Fold_ (Of a) m r
+jiterateM :: Monad m => (a -> m a) -> m a -> Folding_ (Of a) m r
 jiterateM f ma = \construct wrap done -> 
      let loop mx = wrap $ liftM (\x -> construct (x :> loop (f x))) mx
      in loop ma
+{-# INLINE jiterateM #-}
 
-literateM :: Monad m => (a -> m a) -> m a -> Fold (Of a) m r
-literateM f a = Fold (jiterateM f a)
+literateM :: Monad m => (a -> m a) -> m a -> Folding (Of a) m r
+literateM f a = Folding (jiterateM f a)
+{-# INLINE literateM #-}
+-- iterateM :: Monad m => (a -> m a) -> m a -> Series (Of a) m r
+-- iterateM f = loop where
+--   loop ma  = Wrap $ do a <- ma
+--                        return (Construct (a :> loop (f a)))
 
 iterateM :: Monad m => (a -> m a) -> m a -> Series (Of a) m r
-iterateM f = loop where
-  loop ma  = Wrap $ do a <- ma
-                       return (Construct (a :> loop (f a)))
-
-iterateMG :: Monad m => (a -> m a) -> m a -> Series (Of a) m r
-iterateMG = \f m -> buildSeriesx (jiterateM f m)
-{-# INLINE iterateMG #-}
+iterateM = \f m -> buildSeries (literateM f m)
+{-# INLINE iterateM #-}
 -- -- | 'iterate' @f x@ returns an infinite list of repeated applications
 -- -- of @f@ to @x@:
 -- --
@@ -157,40 +167,43 @@ iterateMG = \f m -> buildSeriesx (jiterateM f m)
 -- repeat
 -- ---------------
 
-jrepeat :: a -> Fold_ (Of a) m r
+jrepeat :: a -> Folding_ (Of a) m r
 jrepeat = \a construct wrap done -> let loop = construct (a :> loop) in loop
 {-# INLINE jrepeat #-}
 
-lrepeat :: a -> Fold (Of a) m r
-lrepeat a = Fold (jrepeat a)
-
+lrepeat :: a -> Folding (Of a) m r
+lrepeat a = Folding (jrepeat a)
+{-# INLINE lrepeat #-}
+-- repeat :: a -> Series (Of a) m r
+-- repeat a = loop where
+--   loop = Construct (a :> loop)
+--   
 repeat :: a -> Series (Of a) m r
-repeat a = loop where
-  loop = Construct (a :> loop)
-  
-repeatF :: a -> Series (Of a) m r
-repeatF = buildSeries . lrepeat
+repeat = buildSeries . lrepeat
+{-# INLINE repeat #-}
+-- repeatG :: a -> Series (Of a) m r
+-- repeatG = \x -> buildSeriesx (jrepeat x)
+-- {-# INLINE repeatG #-}
 
-repeatG :: a -> Series (Of a) m r
-repeatG = \x -> buildSeriesx (jrepeat x)
-{-# INLINE repeatG #-}
-
-jrepeatM :: Monad m => m a -> Fold_ (Of a) m r
+jrepeatM :: Monad m => m a -> Folding_ (Of a) m r
 jrepeatM ma = \construct wrap done -> 
       let loop = wrap $ liftM (construct . (:> loop)) ma
       in loop
+{-# INLINE jrepeatM #-}
 
-lrepeatM :: Monad m => m a -> Fold (Of a) m r
-lrepeatM ma = Fold (jrepeatM ma)
+lrepeatM :: Monad m => m a -> Folding (Of a) m r
+lrepeatM ma = Folding (jrepeatM ma)
+{-# INLINE lrepeatM #-}
+-- repeatM :: Monad m => m a -> Series (Of a) m r
+-- repeatM ma = loop where
+--   loop = Wrap $ ma >>= \a -> return (Construct (a :> loop))
 
 repeatM :: Monad m => m a -> Series (Of a) m r
-repeatM ma = loop where
-  loop = Wrap $ ma >>= \a -> return (Construct (a :> loop))
+repeatM = buildSeries . lrepeatM
+{-# INLINE repeatM #-}
 
-repeatMF :: Monad m => m a -> Series (Of a) m r
-repeatMF = buildSeries . lrepeatM
-repeatMG :: Monad m => m a -> Series (Of a) m r
-repeatMG = \x -> buildSeriesx (jrepeatM x)
+-- repeatMG :: Monad m => m a -> Series (Of a) m r
+-- repeatMG = \x -> buildSeriesx (jrepeatM x)
 
 -- -- | 'repeat' @x@ is an infinite list, with @x@ the value of every element.
 -- repeat :: a -> [a]
@@ -212,57 +225,57 @@ repeatMG = \x -> buildSeriesx (jrepeatM x)
 -- filter 
 -- ---------------
 
-jfilter :: (Monad m) => (a -> Bool) -> Fold_ (Of a) m r -> Fold_ (Of a) m r
+jfilter :: (Monad m) => (a -> Bool) -> Folding_ (Of a) m r -> Folding_ (Of a) m r
 jfilter = \pred phi construct wrap done ->
    phi (\aa@(a :> x) -> if pred a then construct aa else x)
        wrap 
        done
 {-# INLINE jfilter #-}
 
-lfilter :: Monad m => (a -> Bool) -> Fold (Of a) m r -> Fold (Of a) m r
-lfilter pred = \phi -> Fold (jfilter pred (getFold phi))
+lfilter :: Monad m => (a -> Bool) -> Folding (Of a) m r -> Folding (Of a) m r
+lfilter pred = \phi -> Folding (jfilter pred (getFolding phi))
 {-# INLINE lfilter #-}
 
-filter  :: (Monad m) => (a -> Bool) -> Series (Of a) m r -> Series (Of a) m r
-filter pred = loop where
-  loop = \case Construct (a :> as) -> if pred a then Construct (a :> loop as)
-                                                else loop as
-               Wrap m -> Wrap $ liftM loop m
-               Done r -> Done r
---
-filterF  :: (Monad m) => (a -> Bool) -> Series (Of a) m r -> Series (Of a) m r               
-filterF pred = buildSeries . lfilter pred . foldSeries
-{-# INLINE filterF #-}
+-- filter  :: (Monad m) => (a -> Bool) -> Series (Of a) m r -> Series (Of a) m r
+-- filter pred = loop where
+--   loop = \case Construct (a :> as) -> if pred a then Construct (a :> loop as)
+--                                                 else loop as
+--                Wrap m -> Wrap $ liftM loop m
+--                Done r -> Done r
+-- --
+filter  :: (Monad m) => (a -> Bool) -> Series (Of a) m r -> Series (Of a) m r               
+filter pred = buildSeries . lfilter pred . foldSeries
+{-# INLINE filter #-}
 
-filterG  :: (Monad m) => (a -> Bool) -> Series (Of a) m r -> Series (Of a) m r
-filterG = \pred phi -> buildSeriesx (jfilter pred  (foldSeriesx phi))
-{-# INLINE filterG #-}
+-- filterG  :: (Monad m) => (a -> Bool) -> Series (Of a) m r -> Series (Of a) m r
+-- filterG = \pred phi -> buildSeriesx (jfilter pred  (foldSeriesx phi))
+-- {-# INLINE filterG #-}
 
-jfilterM :: (Monad m) => (a -> m Bool) -> Fold_ (Of a) m r -> Fold_ (Of a) m r
+jfilterM :: (Monad m) => (a -> m Bool) -> Folding_ (Of a) m r -> Folding_ (Of a) m r
 jfilterM pred = \phi construct wrap done ->
    phi (\aa@(a :> x) -> wrap $ liftM (\b -> if b then construct aa else x) (pred a))
        wrap 
        done
 {-# INLINE jfilterM #-}
 
-lfilterM :: Monad m => (a -> m Bool) -> Fold (Of a) m r -> Fold (Of a) m r
-lfilterM pred phi = Fold (jfilterM pred (getFold phi))
+lfilterM :: Monad m => (a -> m Bool) -> Folding (Of a) m r -> Folding (Of a) m r
+lfilterM pred phi = Folding (jfilterM pred (getFolding phi))
 
 
+-- filterM  :: (Monad m) => (a -> m Bool) -> Series (Of a) m r -> Series (Of a) m r
+-- filterM pred = loop where
+--   loop = \case 
+--      Construct (a:>as) -> Wrap $ do b <- pred a
+--                                     if b then return $ Construct (a :> loop as)
+--                                          else return $ loop as
+--      Wrap m            -> Wrap $ liftM loop m
+--      Done r            -> Done r
+-- 
 filterM  :: (Monad m) => (a -> m Bool) -> Series (Of a) m r -> Series (Of a) m r
-filterM pred = loop where
-  loop = \case 
-     Construct (a:>as) -> Wrap $ do b <- pred a
-                                    if b then return $ Construct (a :> loop as)
-                                         else return $ loop as
-     Wrap m            -> Wrap $ liftM loop m
-     Done r            -> Done r
-
-filterMF  :: (Monad m) => (a -> m Bool) -> Series (Of a) m r -> Series (Of a) m r
-filterMF pred = buildSeries . lfilterM pred . foldSeries
-
-filterMG  :: (Monad m) => (a -> m Bool) -> Series (Of a) m r -> Series (Of a) m r
-filterMG pred = \phi -> buildSeries (lfilterM pred (foldSeries phi))
+filterM pred = buildSeries . lfilterM pred . foldSeries
+{-# INLINE filterM #-}
+-- filterMG  :: (Monad m) => (a -> m Bool) -> Series (Of a) m r -> Series (Of a) m r
+-- filterMG pred = \phi -> buildSeries (lfilterM pred (foldSeries phi))
 
 -- | 'filter', applied to a predicate and a list, returns the list of
 -- those elements that satisfy the predicate; i.e.,
@@ -302,11 +315,11 @@ filterMG pred = \phi -> buildSeries (lfilterM pred (foldSeries phi))
 -- drop
 -- ---------------
 
-ldrop :: Monad m => Int -> Fold (Of a) m r -> Fold (Of a) m r
-ldrop n = \phi -> Fold (jdrop n (getFold phi))
+ldrop :: Monad m => Int -> Folding (Of a) m r -> Folding (Of a) m r
+ldrop n = \phi -> Folding (jdrop n (getFolding phi))
 {-# INLINE ldrop #-}
 
-jdrop :: Monad m => Int -> Fold_ (Of a) m r -> Fold_ (Of a) m r
+jdrop :: Monad m => Int -> Folding_ (Of a) m r -> Folding_ (Of a) m r
 jdrop = \m phi construct wrap done -> 
    phi  
     (\(a :> fn) n -> if n <= m then fn (n+1) else construct (a :> (fn (n+1))))
@@ -315,68 +328,68 @@ jdrop = \m phi construct wrap done ->
     1
 {-# INLINE jdrop #-}
 
+-- drop :: (Monad m) => Int -> Series (Of a) m r -> Series (Of a) m r
+-- drop = loop where
+--   loop 0 p = p
+--   loop n p = case p of
+--      Construct (a :> as) -> loop (n-1) as
+--      Wrap ma      -> Wrap (liftM (drop n) ma)
+--      Done r       -> Done r
+
 drop :: (Monad m) => Int -> Series (Of a) m r -> Series (Of a) m r
-drop = loop where
-  loop 0 p = p
-  loop n p = case p of
-     Construct (a :> as) -> loop (n-1) as
-     Wrap ma      -> Wrap (liftM (drop n) ma)
-     Done r       -> Done r
-
-dropF :: (Monad m) => Int -> Series (Of a) m r -> Series (Of a) m r
-dropF n = buildSeries . ldrop n . foldSeries
-{-# INLINE dropF #-}
-
-dropG :: (Monad m) => Int -> Series (Of a) m r -> Series (Of a) m r
-dropG = \n phi -> buildSeriesx (jdrop n (foldSeriesx phi))
-{-# INLINE dropG #-}
+drop n = buildSeries . ldrop n . foldSeries
+{-# INLINE drop #-}
+-- 
+-- dropG :: (Monad m) => Int -> Series (Of a) m r -> Series (Of a) m r
+-- dropG = \n phi -> buildSeriesx (jdrop n (foldSeriesx phi))
+-- {-# INLINE dropG #-}
 -- ---------------
 -- map
 -- ---------------
 
-lmap f = \fold -> Fold (jmap f (getFold fold))
+lmap f = \fold -> Folding (jmap f (getFolding fold))
 {-# INLINE lmap #-}
 
-jmap :: (a -> b) -> Fold_ (Of a) m r -> Fold_ (Of b) m r
+jmap :: (a -> b) -> Folding_ (Of a) m r -> Folding_ (Of b) m r
 jmap = \f phi construct wrap done -> 
       phi (\(a :> x) -> construct (f a :> x)) 
           wrap 
           done 
 {-# INLINE jmap #-}
+-- 
+-- map f = loop where
+--   loop = \case Construct (a :> as) -> Construct (f a :> loop as)
+--                Wrap m -> Wrap (liftM (map f) m)
+--                Done r -> Done r
 
-map f = loop where
-  loop = \case Construct (a :> as) -> Construct (f a :> loop as)
-               Wrap m -> Wrap (liftM (map f) m)
-               Done r -> Done r
+map f = buildSeries . lmap f . foldSeries
+{-# INLINE map #-}
+-- mapG
+--   :: Monad m2 => (a -> b) -> Series (Of a) m2 r2 -> Series (Of b) m2 r2
+-- mapG = \f phi -> buildSeriesx (jmap f (foldSeriesx phi))
+-- {-# INLINE mapG #-}
 
-mapF f = buildSeries . lmap f . foldSeries
-{-# INLINE mapF #-}
-mapG
-  :: Monad m2 => (a -> b) -> Series (Of a) m2 r2 -> Series (Of b) m2 r2
-mapG = \f phi -> buildSeriesx (jmap f (foldSeriesx phi))
-{-# INLINE mapG #-}
-
-jmapM :: Monad m => (a -> m b) -> Fold_ (Of a) m r -> Fold_ (Of b) m r
+jmapM :: Monad m => (a -> m b) -> Folding_ (Of a) m r -> Folding_ (Of b) m r
 jmapM f = \phi construct wrap done -> 
       phi (\(a :> x) -> wrap (liftM (construct . (:> x)) (f a)))
           wrap 
           done        
 {-# INLINE jmapM #-}
-lmapM :: Monad m => (a -> m b) -> Fold (Of a) m r -> Fold (Of b) m r
-lmapM f = \(Fold phi) -> Fold (jmapM f phi)
+lmapM :: Monad m => (a -> m b) -> Folding (Of a) m r -> Folding (Of b) m r
+lmapM f = \(Folding phi) -> Folding (jmapM f phi)
 {-# INLINE lmapM #-}
 
-mapM :: Monad m => (a -> m b) -> Series (Of a) m r -> Series (Of b) m r
-mapM f = loop where
-  loop = \case Construct (a :> as) -> Wrap $ liftM (Construct.(:> loop as)) (f a)
+-- mapM :: Monad m => (a -> m b) -> Series (Of a) m r -> Series (Of b) m r
+-- mapM f = loop where
+--   loop = \case Construct (a :> as) -> Wrap $ liftM (Construct.(:> loop as)) (f a)
 
-mapMF :: Monad m => (a -> m b) -> Series (Of a) m r -> Series (Of b) m r
-mapMF f = buildSeries . lmapM f . foldSeries
-{-# INLINE mapMF #-}
+mapM :: Monad m => (a -> m b) -> Series (Of a) m r -> Series (Of b) m r
+mapM f = buildSeries . lmapM f . foldSeries
+{-# INLINE mapM #-}
 --
-mapMG :: Monad m => (a -> m b) -> Series (Of a) m r -> Series (Of b) m r
-mapMG f = \phi -> buildSeriesx (jmapM f (foldSeriesx phi))
-{-# INLINE mapMG #-}
+-- mapMG :: Monad m => (a -> m b) -> Series (Of a) m r -> Series (Of b) m r
+-- mapMG f = \phi -> buildSeriesx (jmapM f (foldSeriesx phi))
+-- {-# INLINE mapMG #-}
 -- map :: (a -> b) -> [a] -> [b]
 -- {-# NOINLINE [1] map #-}    -- We want the RULE to fire first.
 --                             -- It's recursive, so won't inline anyway,
@@ -425,37 +438,35 @@ mapMG f = \phi -> buildSeriesx (jmapM f (foldSeriesx phi))
 -- take
 -- ---------------
 
-ltake :: Monad m => Int -> Fold (Of a) m r -> Fold (Of a) m ()
-ltake n = \(Fold phi)  -> Fold (jtake n phi)
-{-# INLINE ltake #-}
---      phi 
---      (\(a :> fn) n -> if n <= 0 then rout () else fout (a :> (fn (n-1))))
---      (\m n -> mout (liftM ($n) m)) 
---      (\r n -> rout ()) 
---      n)
-jtake :: Monad m => Int -> Fold_ (Of a) m r -> Fold_ (Of a) m ()
-jtake = \n phi construct wrap done -> phi 
-      (\(a :> fn) n -> if n <= 0 then done () else construct (a :> (fn (n-1))))
-      (\m n -> if n <= 0 then done () else wrap (liftM ($n) m)) 
+
+
+jtake :: (Monad m, Functor f) => Int -> Folding_ f m r -> Folding_ f m ()
+jtake n phi = \construct wrap done -> phi 
+      (\fx n -> if n <= 0 then done () else construct (fmap ($(n-1)) fx))
+      (\mx n -> if n <= 0 then done () else wrap (liftM ($n) mx)) 
       (\r n -> done ()) 
       n
 {-# INLINE jtake #-}
 
-take :: Monad m => Int -> Series (Of a) m r -> Series (Of a) m ()
-take = loop where
-  loop 0 p = return ()
-  loop n p = 
-    case p of Construct (a :> as) -> Construct (a :> loop (n-1) as)
-              Wrap m -> Wrap (liftM (loop n) m)
-              Done r -> Done ()
+ltake :: (Monad m, Functor f) => Int -> Folding f m r -> Folding f m ()
+ltake n = \(Folding phi)  -> Folding (jtake n phi)
+{-# INLINE ltake #-}
+-- 
+-- take :: (Monad m, Functor f) => Int -> Series f m r -> Series f m ()
+-- take = loop where
+--   loop 0 p = return ()
+--   loop n p = case p of Construct fas -> Construct (fmap (loop (n-1)) fas)
+--                        Wrap m -> Wrap (liftM (loop n) m)
+--                        Done r -> Done ()
 
-takeF :: Monad m => Int -> Series (Of a) m r -> Series (Of a) m ()
-takeF n = buildSeries . ltake n . foldSeries
-{-# INLINE takeF #-}
+take :: (Monad m, Functor f) => Int -> Series f m r -> Series f m ()
+take n = buildSeries . ltake n . foldSeries
+{-# INLINE take #-}
+-- 
+-- takeG :: (Monad m, Functor f) => Int -> Series f m r -> Series f m ()
+-- takeG = \n phi -> buildSeriesx (jtake n  (foldSeriesx phi))
+-- {-# INLINE takeG #-}
 
-takeG :: Monad m => Int -> Series (Of a) m r -> Series (Of a) m ()
-takeG = \n phi -> buildSeriesx (jtake n  (foldSeriesx phi))
-{-# INLINE takeG #-}
 
 -- replicate :: Monad m => Int -> a -> Series (Of a) m ()
 -- replicate n x = loop n where
@@ -480,15 +491,15 @@ takeG = \n phi -> buildSeriesx (jtake n  (foldSeriesx phi))
 -- {-# INLINE replicate #-}
 -- replicate               :: Int -> a -> [a]
 -- replicate n x           =  take n (repeat x)
+-- 
+-- takeWhile :: Monad m => (a -> Bool) -> Series (Of a) m r -> Series (Of a) m ()
+-- takeWhile pred = loop where
+--   loop = \case Construct (a :> as) -> if pred a then Construct (a :> loop as)
+--                                                 else return () 
+--                Wrap m              -> Wrap (liftM loop m)
+--                Done r              -> Done ()
 
-takeWhile :: Monad m => (a -> Bool) -> Series (Of a) m r -> Series (Of a) m ()
-takeWhile pred = loop where
-  loop = \case Construct (a :> as) -> if pred a then Construct (a :> loop as)
-                                                else return () 
-               Wrap m              -> Wrap (liftM loop m)
-               Done r              -> Done ()
-
-jtakeWhile :: Monad m => (a -> Bool) -> Fold_ (Of a) m r -> Fold_ (Of a) m ()
+jtakeWhile :: Monad m => (a -> Bool) -> Folding_ (Of a) m r -> Folding_ (Of a) m ()
 jtakeWhile = \pred phi construct wrap done -> phi
   (\(a :> fn) p -> if not (pred a) 
                       then done () 
@@ -496,16 +507,17 @@ jtakeWhile = \pred phi construct wrap done -> phi
   (\m p -> if not p then done () else wrap (liftM ($p) m)) 
   (\r p -> done ()) 
   True 
+{-# INLINE jtakeWhile #-}
 
-ltakeWhile :: Monad m => (a -> Bool) -> Fold (Of a) m r -> Fold (Of a) m ()
-ltakeWhile pred = \(Fold fold) -> Fold (jtakeWhile pred fold)
-
-takeWhileF :: Monad m => (a -> Bool) -> Series (Of a) m r -> Series (Of a) m ()
-takeWhileF pred = buildSeries . ltakeWhile pred . foldSeries 
-
-takeWhileG :: Monad m => (a -> Bool) -> Series (Of a) m r -> Series (Of a) m ()
-takeWhileG = \pred phi -> buildSeriesx  (jtakeWhile pred  (foldSeriesx phi))
-{-# INLINE takeWhileG #-}
+ltakeWhile :: Monad m => (a -> Bool) -> Folding (Of a) m r -> Folding (Of a) m ()
+ltakeWhile pred = \(Folding fold) -> Folding (jtakeWhile pred fold)
+{-# INLINE ltakeWhile #-}
+takeWhile :: Monad m => (a -> Bool) -> Series (Of a) m r -> Series (Of a) m ()
+takeWhile pred = buildSeries . ltakeWhile pred . foldSeries 
+{-# INLINE takeWhile #-}
+-- takeWhileG :: Monad m => (a -> Bool) -> Series (Of a) m r -> Series (Of a) m ()
+-- takeWhileG = \pred phi -> buildSeriesx  (jtakeWhile pred  (foldSeriesx phi))
+-- {-# INLINE takeWhileG #-}
 
 
 
@@ -524,22 +536,26 @@ lenumFromToStep n m k = \construct wrap done ->
                                    else done ()
             in loop n
 --
-lenumFromStepN a b k = \construct wrap done -> 
-            let loop 0 p = done ()
-                loop j p = construct (p :> loop (j-1) (p + b)) 
-            in loop a k
 
-enumFrom n = buildSeries (Fold (lenumFrom n))
-enumFromTo n m = buildSeries (Fold (lenumFromTo n m))
-enumFromToStep n m k = buildSeries (Fold (lenumFromToStep n m k))
-enumFromStepN k m n = buildSeries (Fold (lenumFromStepN n m k))
+
+enumFrom n = buildSeries (Folding (lenumFrom n))
+enumFromTo n m = buildSeries (Folding (lenumFromTo n m))
+enumFromToStep n m k = buildSeries (Folding (lenumFromToStep n m k))
+
+enumFromStepN :: (Monad m, Num a) => a -> a -> Int -> Series (Of a) m ()
+enumFromStepN start step n = buildSeries (Folding (lenumFromStepN start step n))
 {-# INLINE enumFromStepN #-}
+--
+lenumFromStepN start step n = \construct wrap done -> 
+               let loop p 0 = done ()
+                   loop p now = construct (p :> loop (p + step) (now-1)) 
+               in loop start n
+
 
 -- ---------------------------------------
 -- IO fripperies copped from Pipes.Prelude
 -- ---------------------------------------
 
-type List a = Series (Of a) Identity ()
 
 -- stdinLn = Wrap loop where
 --   loop = getLine >>= \str -> return (Construct (str :> Wrap loop))

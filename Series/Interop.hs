@@ -29,30 +29,30 @@ seriesToProducer = loop where
 
 -- -----
 
-producerToFold_ :: Monad m => Producer a m r -> Fold_ (Of a) m r
-producerToFold_ prod = \construct wrap done -> 
+producerToFolding_ :: Monad m => Producer a m r -> Folding_ (Of a) m r
+producerToFolding_ prod = \construct wrap done -> 
   let loop = \case M mp         -> wrap (liftM loop mp)
                    Pure r       -> done r
                    Respond a go -> construct (a :> loop (go ()))
                    Request x f  -> closed x
   in loop prod 
 
-buildProducer_ :: Monad m =>  Fold_ (Of a) m r -> Producer a m r 
+buildProducer_ :: Monad m =>  Folding_ (Of a) m r -> Producer a m r 
 buildProducer_ phi = phi (\(a :> p) -> yield a >> p) M return
 
 -- -----
 
-producerToFold :: Monad m => Producer a m r -> Fold (Of a) m r
-producerToFold  p = Fold (producerToFold_ p)
+producerToFolding :: Monad m => Producer a m r -> Folding (Of a) m r
+producerToFolding  p = Folding (producerToFolding_ p)
 
-buildProducer :: Monad m =>  Fold (Of a) m r -> Producer a m r 
-buildProducer phi = buildProducer_ (getFold phi)
+buildProducer :: Monad m =>  Folding (Of a) m r -> Producer a m r 
+buildProducer phi = buildProducer_ (getFolding phi)
 
 -- ----------------
 -- FreeT interop
 -- ----------------
 
-foldFree_ :: (Functor f, Monad m) => FreeT f m t -> Fold_ f m t
+foldFree_ :: (Functor f, Monad m) => FreeT f m t -> Folding_ f m t
 foldFree_ f construct wrap done = outer f where
    outer = wrap
          . liftM (\case Free.Pure r -> done r
@@ -60,19 +60,19 @@ foldFree_ f construct wrap done = outer f where
          . runFreeT
 
 
-buildFree_ :: Monad m => Fold_ f m r -> FreeT f m r 
+buildFree_ :: Monad m => Folding_ f m r -> FreeT f m r 
 buildFree_ phi = phi (FreeT . return . Free) 
                      (FreeT . (>>= runFreeT )) 
                      (FreeT . return . Free.Pure)
                      
 -- standard foldr order
-freeFold
+freeFolding
   :: (Functor f, Monad m) =>
       (f r' -> r') -> (m r' -> r') -> (t -> r') -> FreeT f m t -> r'
-freeFold construct wrap done = 
+freeFolding construct wrap done = 
   wrap 
   . liftM (\case Free.Pure r -> done r
-                 Free free_  -> construct (fmap (freeFold construct wrap done) free_)) 
+                 Free free_  -> construct (fmap (freeFolding construct wrap done) free_)) 
   . runFreeT
 
 -- ---------------------
@@ -83,11 +83,11 @@ seriesToList  = \case Wrap (Identity ls)  -> seriesToList ls
                       Construct (a :> ls) -> a : seriesToList ls
                       Done ()             -> []
 
-foldToList, foldToList' :: Fold (Of a) Identity () -> [a]
-foldToList  phi = buildList (getFold phi)
-foldToList' phi = buildList' (getFold phi)
+foldToList, foldToList' :: Folding (Of a) Identity () -> [a]
+foldToList  phi = buildList (getFolding phi)
+foldToList' phi = buildList' (getFolding phi)
 
-buildList, buildList' :: Fold_ (Of a) Identity () -> [a]
+buildList, buildList' :: Folding_ (Of a) Identity () -> [a]
 buildList phi = build (\cons nil -> phi (\(x :> xs) -> cons x xs) 
                                         runIdentity 
                                         (\() -> nil))
@@ -101,7 +101,7 @@ seriesFromList :: [a] -> Series (Of a) Identity ()
 seriesFromList  []    = Done ()
 seriesFromList  (x:xs) = Construct (x :> seriesFromList xs)
 
-toSeriesM :: Monad m => Fold_ (Of a) m r -> m ([a],r)
+toSeriesM :: Monad m => Folding_ (Of a) m r -> m ([a],r)
 toSeriesM phi = phi construct join (\r -> return ([], r)) where
   construct (a :> mls) = do (as,r) <- mls
                             return (a : as, r)

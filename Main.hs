@@ -10,10 +10,14 @@ import Control.Monad
 import Control.Monad.Morph
 import System.Environment
 import System.IO 
-main = getFold (foldSeries stdinLn) 
+
+-- main = sum (map length stdinLn) >>= print
+main = getFold (foldSeries stdinLn)
                    (\(str :> x) -> putStrLn str >> x) 
                    join 
                    return
+                   
+                   
 {-
 gain = do (a:sn:_) <- getArgs -- pain where
           let n = 1000 * read sn :: Int

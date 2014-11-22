@@ -54,19 +54,32 @@ possibilities of definition unnecessarily. Thus we would like to
 define `take :: Int -> Fold (Of a) m r -> Fold (Of a) m r`  by 
 instantiating the rank-2 fold at `Int -> Fold_ (Of a) m r`:
 
-    pretake :: Monad m => Int -> Fold_ (Of a) m r -> Fold_ (Of a) m ()
-    pretake = \n phi construct wrap done -> phi 
-          (\(a :> fn) n -> if n <= 0 then done () 
-                                     else construct (a :> (fn (n-1))))
-          (\m n -> if n <= 0 then done () 
-                             else wrap (liftM ($n) m)) 
-          (\r n -> done ()) 
-          n
+    take :: (Monad m, Functor f) => Int -> Series f m r -> Series f m ()
+    take n =  buildSeries . (\(Fold phi) -> Fold (pretake n phi)) . foldSeries 
+      where
+        pretake :: (Monad m, Functor f) => Int -> Fold_ f m r -> Fold_ f m ()
+        pretake n phi = \construct wrap done -> phi 
+              (\fx n -> if n <= 0 then done () else construct (fmap ($(n-1)) fx))
+              (\mx n -> if n <= 0 then done () else wrap (liftM ($n) mx)) 
+              (\r n -> done ()) 
+              n
+        {-# INLINE pretake #-}
+    {-# INLINE take #-}
 
-At the moment, then, all functions are basically of the form
-`build . churched-definition . fold` so that we can eliminate
-`fold . build` in the style of the `stream . unstream  = id` rule
-in `vector`. Of the two principal fusion operations,
+
+At the moment, then, all functions are thus basically of one of the forms
+
+        build . wrapped-churched-definition . fold
+        wrapped-churched-definition . fold
+        build . wrapped-churched-definition
+        
+so that we can eliminate `fold . build` upon composition, 
+in the style of the `stream . unstream  = id` rule
+in `vector`. This seems to account for the success of the style in getting the
+compiler to recognize fusion opportunities, attested by the
+benchmarks so far and by counting appearances with `-ddump-rule-firings`
+
+Of the two principal fusion operations,
 
     buildSeries :: Fold f m r -> Series f m r 
     buildSeries = \(Fold phi) -> phi Construct Wrap Done

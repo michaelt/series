@@ -24,7 +24,11 @@ cabal-version:       >=1.10
 
 
 library
-  exposed-modules:     Series.Combinators, Series.Prelude, Series.Types, Series.Interop
+  exposed-modules:     Series.Combinators, 
+                       Series.Prelude.Naive,
+                       Series.Prelude.Fused, 
+                       Series.Types, 
+                       Series.Interop
     -- other-modules:       
   other-extensions:    LambdaCase, RankNTypes, EmptyCase, 
                        StandaloneDeriving, FlexibleContexts, 
@@ -35,6 +39,7 @@ library
   build-depends:       base >=4.7 && <4.8
                      , pipes
                      , foldl
+                     , text
                      , mtl >=2.1 && <2.2
                      , mmorph >=1.0 && <1.1
                      , transformers >=0.3 && <0.4
@@ -56,4 +61,4 @@ benchmark benchmarks
     transformers,
     pipes, 
     vector,
-    series 
+    series
