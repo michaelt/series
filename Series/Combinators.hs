@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase, RankNTypes, BangPatterns #-}
 module Series.Combinators where
-  
+
 import Series.Types
 import Control.Applicative 
 import Control.Monad hiding (foldM)
@@ -106,7 +106,7 @@ effectfulFolding :: (Functor f, Monad m) =>
               -> (f a -> a)
               -> Series f m r
               -> a
-effectfulFolding  malg nil falg = loop where 
+effectfulFolding malg nil falg = loop where 
   loop = \case Wrap m      -> malg (liftM loop m)
                Construct f -> falg (fmap loop f)
                Done r      -> nil r
@@ -120,14 +120,12 @@ efold malg ealg = loop where
 
 
 crush :: (Monad m, Functor f) => Series f m r -> m (Series f m r)
-crush = \case Wrap m -> m
-              a     -> return a
-
+crush = \case Wrap m -> m; a     -> return a
 
 
 pr :: Functor f => f r -> Folding_ f m r 
 pr fr = \construct wrap done -> construct (fmap done fr)
-sing :: a -> Folding_ (Of a) m ()
+sing :: a -> Folding_ (Of a) m () --yield
 sing a = \construct wrap done -> construct (a :> done ())
 ret :: r -> Folding_ f m r
 ret r = \construct wrap done -> done r

@@ -1,17 +1,25 @@
+{-# LANGUAGE BangPatterns #-}
+
 module Main (main) where
 
-import Control.Monad (void)
+import Control.Monad (void, forever)
 import Criterion.Main
 import Series.Types
 import Series.Combinators
-import Series.Prelude.Fused 
-import qualified Series.Prelude.Naive as N 
+import Series.Prelude 
+import qualified Series.FreeT.Prelude as F
+import qualified Series.Prelude.Direct as N 
+import qualified Series.Producer.Prelude as Pr 
+import qualified Control.Monad.Trans.Free as F
+ 
 import Prelude hiding (map, filter, drop, take, sum
                       , iterate, repeat, replicate
                       , splitAt, mapM, takeWhile)
 import qualified Prelude as P
 import Data.Functor.Identity
-import Pipes
+import Pipes hiding (yield)
+import qualified Pipes 
+
 import qualified Pipes.Prelude as PP
 import qualified Data.Vector.Unboxed as V
 
@@ -24,16 +32,35 @@ big = 10000000
 -- long composition
 -- -------------------
 
-
 long_fused :: Int -> Int
-long_fused  n = runIdentity $ sum ( 
-             (take n
+long_fused  n = runIdentity $ sum2 ( 
+             (take2 n
               (drop 100
-                (map (\x -> 3*x + 1)
-                (filter even
+                (map2 (\x -> 3*x + 1)
+                (filter2 even
                ((iterate (\x -> x+1) (10 :: Int) ) :: Series (Of Int) Identity ())
               )))))  
-{-# INLINE long_fused  #-}  
+{-# INLINE long_fused  #-}
+
+long_fused_free :: Int -> Int
+long_fused_free  n = runIdentity $ F.sum2 ( 
+             (F.take2 n
+              (F.drop 100
+                (F.map2 (\x -> 3*x + 1)
+                (F.filter even
+               ((F.iterate (\x -> x+1) (10 :: Int) ) :: F.FreeT (Of Int) Identity ())
+              )))))  
+{-# INLINE long_fused_free  #-}
+
+long_fused_pipes :: Int -> Int
+long_fused_pipes  n = runIdentity $ Pr.sum2 ( 
+             (Pr.take2 n
+              (Pr.drop 100
+                (Pr.map2 (\x -> 3*x + 1)
+                (Pr.filter even
+               ((Pr.iterate (\x -> x+1) (10 :: Int) ) :: Producer Int Identity ())
+              )))))
+{-# INLINE long_fused_pipes  #-}
 
 long_naive  :: Int -> Int
 long_naive  n = runIdentity $ N.sum (
@@ -44,7 +71,6 @@ long_naive  n = runIdentity $ N.sum (
       ((N.iterate (\x -> x+1) (10 :: Int) ) )
      ))))) 
 {-# INLINE long_naive  #-}
-
 
 long_list  :: Int -> Int
 long_list  n = P.sum (
@@ -66,14 +92,14 @@ long_vector n =  V.sum (
      ))))) 
 {-# INLINE long_vector #-}
 
-pipe :: Int -> Int
-pipe n = runIdentity $ 
+pipe_naive :: Int -> Int
+pipe_naive n = runIdentity $ 
          PP.sum $ each (P.iterate (\x -> x+1) (10 :: Int) ) 
                   >-> PP.filter even
                   >-> PP.map (\x -> 3*x + 1)
                   >-> PP.drop 100
                   >-> PP.take n
-{-# INLINE pipe #-}
+{-# INLINE pipe_naive #-}
 
 
 -- -------------------
@@ -82,10 +108,15 @@ pipe n = runIdentity $
 short_naive :: Int -> Int
 short_naive = \n -> runIdentity $ N.sum (N.take n (N.iterate (\x -> x+1) (10 :: Int) :: Series (Of Int) Identity ()))
 {-# INLINE short_naive #-}
-
+short_free :: Int -> Int
+short_free = \n -> runIdentity $ F.sum (F.take n (F.iterate (\x -> x+1) (10 :: Int) :: F.FreeT (Of Int) Identity ()))
+{-# INLINE short_free #-}
 short_fused :: Int -> Int
-short_fused = \n -> runIdentity $ sum (take n (iterate (\x -> x+1) (10 :: Int) :: Series (Of Int) Identity ()))
+short_fused = \n -> runIdentity $ sum2 (take2 n (iterate (\x -> x+1) (10 :: Int) :: Series (Of Int) Identity ()))
 {-# INLINE short_fused #-}
+short_producer :: Int -> Int
+short_producer = \n -> runIdentity $ Pr.sum (Pr.take n (Pr.iterate (\x -> x+1) (10 :: Int) :: Producer Int Identity ()))
+{-# INLINE short_producer #-}
 
 short_list :: Int -> Int
 short_list = \n -> P.sum (P.take n (P.iterate (\x -> x+1) (10 :: Int)))
@@ -95,12 +126,12 @@ short_vector :: Int -> Int
 short_vector = \n -> V.sum (V.take n (V.iterateN (n*2) (\x -> x+1) (10 :: Int)))
 {-# INLINE short_vector #-}
 
-short_pipe :: Int -> Int 
-short_pipe = \n -> runIdentity $ 
+short_producer_naive :: Int -> Int 
+short_producer_naive = \n -> runIdentity $ 
            PP.sum (each (P.iterate (\x -> x+1) (10 :: Int) ) 
                    >-> PP.take n
                    )
-{-# INLINE short_pipe #-}                
+{-# INLINE short_producer_naive #-}                
 
 -- -------------------
 -- simple sum
@@ -110,10 +141,22 @@ rN :: Int -> Int
 rN n = runIdentity (N.sum (N.replicate n 1))
 {-# INLINE rN #-}    
 
+
 rF :: Int -> Int 
-rF n = runIdentity (sum (replicate n 1))
+rF n = runIdentity (sum2 (replicate n 1))
 {-# INLINE rF #-}
 
+rFr :: Int -> Int 
+rFr n = runIdentity (F.sum (F.replicate n 1))
+{-# INLINE rFr #-}
+
+rPr :: Int -> Int 
+rPr n = runIdentity (Pr.sum (Pr.replicate n 1))
+{-# INLINE rPr #-}
+
+rPrN :: Int -> Int 
+rPrN n = runIdentity (PP.sum (each (P.replicate n 1)))
+{-# INLINE rPrN #-}
 rL :: Int -> Int
 rL n =  P.sum (P.replicate n 1)
 {-# INLINE rL #-}
@@ -125,11 +168,27 @@ rV n = V.sum (V.replicate n 1)
 -- -----
 -- enum
 -- -----
+
+enumFromStep_ :: Int -> Int -> Int -> Producer Int Identity ()
+enumFromStep_ n1 s n2 = loop n1 n2
+    where
+        loop !step 0 = return ()
+        loop step n = do
+                Pipes.yield $! step
+                loop  (step + s) $! (n - 1)
+{-# INLINABLE enumFromStep_ #-}
+
 z :: Int
 z = 0
 
 enum_naive n = runIdentity (N.sum (N.map (+7) (N.enumFromStepN z 10 (n*3))))
 {-# INLINE enum_naive #-}
+enum_free n = runIdentity (F.sum (F.map (+7) (F.enumFromStepN z 10 (n*3))))
+{-# INLINE enum_free #-}
+enum_pipe n = runIdentity (Pr.sum (Pr.map (+7) (Pr.enumFromStepN z 10 (n*3))))
+{-# INLINE enum_pipe #-}
+enum_pipe_naive n = runIdentity (PP.sum (enumFromStep_ z 10 (n*30) >-> PP.map (+7)))
+{-# INLINE enum_pipe_naive #-}
 enum_fused n = runIdentity (sum (map (+7) (enumFromStepN z 10 (n*3))))
 {-# INLINE enum_fused #-}
 enum_vector n = V.sum (V.map (+7) (V.enumFromStepN z 10 (n*3)))
@@ -139,6 +198,10 @@ enum_list n = P.sum (P.map (+7) (P.take (n*3) [z, 10 ..]))
 --
 enum_naive_dot  = runIdentity . N.sum . N.map (+7) . N.enumFromStepN z 10 . (*3)
 {-# INLINE enum_naive_dot #-}
+enum_free_dot  = runIdentity . F.sum . F.map (+7) . F.enumFromStepN z 10 . (*3)
+{-# INLINE enum_free_dot #-}
+enum_pipe_dot  = runIdentity . Pr.sum . Pr.map (+7) . Pr.enumFromStepN z 10 . (*3)
+{-# INLINE enum_pipe_dot #-}
 enum_fused_dot = runIdentity . sum . map (+7) . enumFromStepN z 10 . (*3)
 {-# INLINE enum_fused_dot #-}
 enum_vector_dot = V.sum . V.map (+7) . V.enumFromStepN z 10 . (*3)
@@ -146,40 +209,61 @@ enum_vector_dot = V.sum . V.map (+7) . V.enumFromStepN z 10 . (*3)
 enum_list_dot = P.sum . P.map (+7) . (\n -> [z, 10 .. n*30])
 {-# INLINE enum_list_dot #-}
 
+goo :: Int -> Int
+goo = runIdentity . sum . take 1000 . forever . yield 
+{-# INLINE goo #-}
+gooo :: Int -> Int
+gooo = runIdentity . N.sum . N.take 1000 . forever . (\a -> Construct (a :> Done ()))
+{-# INLINE gooo #-}
+goooo :: Int -> Int
+goooo = runIdentity . sum . replicate 1000
+{-# INLINE goooo #-}
+
 main :: IO ()
 main =
   defaultMain
-  [ bgroup "sum.take.map.drop.filter.iterate"
-      [ bench "vector" $ whnf long_vector value
-      , bench "fused" $ whnf long_fused value
-      , bench "naive" $ whnf long_naive value
-      , bench "list" $ whnf long_list value
+  [bgroup "sum.map.enumFromTo"
+      [ bench "vector" $ whnf enum_vector value
+      , bench "series"  $ whnf enum_naive value
+ --     , bench "pipes"  $ whnf enum_pipe_naive value
+      , bench "list"   $ whnf enum_list value
+      , bench "FUSED/series"  $ whnf enum_fused value      
+      , bench "FUSED/freet"  $ whnf enum_free value
+      , bench "FUSED/pipes" $ whnf enum_pipe value
       ]
-
-  , bgroup "sum.take.iterate"
-      [ bench "vector" $ whnf short_vector value
-      , bench "fused" $ whnf short_fused value
-      , bench "naive" $ whnf short_naive value
-      , bench "list" $ whnf short_list value
-      ]
-  , bgroup "sum.replicate"
-       [ bench "vector" $ whnf rV value
-       , bench "fused" $ whnf rF value
-       , bench "naive" $ whnf rN value
-       , bench "list" $ whnf  rL value
+  , bgroup "sum.map.enumFromTo.pointfree"
+      [ bench "vector" $ whnf enum_vector_dot value
+      , bench "series"  $ whnf enum_naive_dot value
+      , bench "list"   $ whnf enum_list_dot value
+      , bench "FUSED/series"  $ whnf enum_fused_dot value
+      , bench "FUSED/freet"  $ whnf enum_fused_dot value
+      , bench "FUSED/pipes"  $ whnf enum_pipe_dot value
        ]
-   , bgroup "sum.map.enumFromTo"
-         [ bench "vector" $ whnf enum_vector value
-         , bench "fused" $ whnf enum_fused value
-         , bench "naive" $ whnf enum_naive value
-         , bench "list" $ whnf enum_list value
-         ]
-   , bgroup "sum.map.enumFromTo.pointfree"
-         [ bench "vector" $ whnf enum_vector_dot value
-         , bench "fused" $ whnf enum_fused_dot value
-         , bench "naive" $ whnf enum_naive_dot value
-         , bench "list" $ whnf enum_list_dot value
-         ]
-             
-  ]
-  
+ , bgroup "sum.replicate"
+     [ bench "vector" $ whnf rV value
+     , bench "series"  $ whnf rN value
+     , bench "pipes" $ whnf rPrN value
+     , bench "list"   $ whnf rL value
+     , bench "FUSED/series"  $ whnf rF value
+     , bench "FUSED/freet"  $ whnf rFr value
+     , bench "FUSED/pipes" $ whnf rPr value
+     ]
+ , bgroup "sum.take.iterate"
+     [ bench "vector" $ whnf short_vector value
+     , bench "series"  $ whnf short_naive value
+     , bench "pipes"  $ whnf short_producer_naive value
+     , bench "list"   $ whnf short_list value
+     , bench "FUSED/series"  $ whnf short_fused value
+     , bench "FUSED/freet"  $ whnf short_free value
+     , bench "FUSED/pipes"  $ whnf short_producer value
+      ]
+ , bgroup "sum.take.map.drop.filter.iterate"
+      [bench "vector" $ whnf long_vector value
+      , bench "series"  $ whnf long_naive value  
+--      , bench "pipes" $ whnf pipe_naive value
+--      , bench "list"   $ whnf long_list value
+      , bench "FUSED/series"  $ whnf long_fused value
+      , bench "FUSED/freet"  $ whnf long_fused_free value
+      , bench "FUSED/pipes" $ whnf long_fused_pipes value
+      ]
+   ]

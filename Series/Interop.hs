@@ -1,5 +1,4 @@
 {-# LANGUAGE LambdaCase, RankNTypes #-}
-
 module Series.Interop where
 import Series.Types
 import Control.Monad
@@ -29,24 +28,6 @@ seriesToProducer = loop where
 
 -- -----
 
-producerToFolding_ :: Monad m => Producer a m r -> Folding_ (Of a) m r
-producerToFolding_ prod = \construct wrap done -> 
-  let loop = \case M mp         -> wrap (liftM loop mp)
-                   Pure r       -> done r
-                   Respond a go -> construct (a :> loop (go ()))
-                   Request x f  -> closed x
-  in loop prod 
-
-buildProducer_ :: Monad m =>  Folding_ (Of a) m r -> Producer a m r 
-buildProducer_ phi = phi (\(a :> p) -> yield a >> p) M return
-
--- -----
-
-producerToFolding :: Monad m => Producer a m r -> Folding (Of a) m r
-producerToFolding  p = Folding (producerToFolding_ p)
-
-buildProducer :: Monad m =>  Folding (Of a) m r -> Producer a m r 
-buildProducer phi = buildProducer_ (getFolding phi)
 
 -- ----------------
 -- FreeT interop

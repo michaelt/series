@@ -20,14 +20,20 @@ extra-source-files:
   .gitignore
   README.md
   Main.hs
+  notes/*
+  
 cabal-version:       >=1.10
 
 
 library
   exposed-modules:     Series.Combinators, 
-                       Series.Prelude.Naive,
-                       Series.Prelude.Fused, 
+                       Series.Prelude,
+                       Series.Prelude.Direct,
+                       Series.Folding.Prelude, 
+                       Series.FreeT.Prelude, 
+                       Series.Producer.Prelude,
                        Series.Types, 
+                       Series.ByteString,
                        Series.Interop
     -- other-modules:       
   other-extensions:    LambdaCase, RankNTypes, EmptyCase, 
@@ -44,6 +50,8 @@ library
                      , mmorph >=1.0 && <1.1
                      , transformers >=0.3 && <0.4
                      , free >=4.9 && <4.10
+                     , bytestring
+                     , logict
   
   default-language:    Haskell2010
   ghc-options:      -O2 
@@ -61,4 +69,8 @@ benchmark benchmarks
     transformers,
     pipes, 
     vector,
-    series
+    series,
+    free >=4.9 && <4.10,
+    logict
+    
+    

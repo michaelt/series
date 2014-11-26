@@ -1,21 +1,30 @@
 import Series.Types
 import Series.Combinators
-import Series.Prelude
+import qualified Series.ByteString as SB
+import Series.MonadPlus.Prelude hiding (replicateM)
 import Prelude hiding (map, filter, drop, take, sum
                       , iterate, repeat, replicate
-                      , splitAt, mapM, takeWhile)
+                      , splitAt, mapM, takeWhile, scanr)
 import qualified Prelude as P
 import Data.Functor.Identity
 import Control.Monad
 import Control.Monad.Morph
 import System.Environment
 import System.IO 
+import qualified Data.ByteString as B
+import Pipes
 
--- main = sum (map length stdinLn) >>= print
-main = getFold (foldSeries stdinLn)
-                   (\(str :> x) -> putStrLn str >> x) 
-                   join 
-                   return
+-- main = print =<< sum2 ( map B.length SB.stdinLn) 
+-- main = print $ runIdentity $ foldl' (+) 0 (replicate 30 1)
+main = getFolding (foldMonadPlus $ (replicate 10 1 :: ListT IO Int) )
+                          (\(str :> x) -> print str >> x) 
+                          join 
+                          return
+       
+-- main = getFolding (foldSeries stdinLn)
+--                    (\(str :> x) -> putStrLn str >> x) 
+--                    join 
+--                    return
                    
                    
 {-

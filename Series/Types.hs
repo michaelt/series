@@ -1,7 +1,8 @@
 {-# LANGUAGE LambdaCase, RankNTypes, EmptyCase, 
              StandaloneDeriving, FlexibleContexts,
              DeriveDataTypeable, DeriveFoldable, 
-             DeriveFunctor, DeriveTraversable #-}
+             DeriveFunctor, DeriveTraversable,
+             ScopedTypeVariables #-}
 {-# LANGUAGE UndecidableInstances #-} -- for Series show instance
 module Series.Types where
 
@@ -11,10 +12,10 @@ import Control.Applicative
 import Data.Data ( Data, Typeable )
 import Data.Foldable ( Foldable )
 import Data.Traversable 
-import Pipes 
-import Pipes.Internal 
+import qualified Pipes as Pipes
+import qualified Pipes.Internal as Pipes
 import Control.Monad.Morph
-
+import Data.Monoid
 import Data.Functor.Identity
 import GHC.Exts ( build )
 import Control.Monad.Trans.Free ( FreeT(..), FreeF(Free) )
@@ -25,6 +26,14 @@ data Of a b = !a :> b
     deriving (Data, Eq, Foldable, Functor, Ord,
               Read, Show, Traversable, Typeable)
 infixr 4 :>
+
+kurry :: (Of a b -> c) -> a -> b -> c
+kurry f = \a b -> f (a :> b)
+{-# INLINE kurry #-}
+
+unkurry :: (a -> b -> c) -> Of a b -> c
+unkurry f = \(a :> b) -> f a b
+{-# INLINE unkurry #-}
 
 -- explicit Series/FreeT data type
 data Series f m r = Construct (f (Series f m r))
@@ -101,6 +110,7 @@ foldBind f phi = Folding (\construct wrap done ->
                                    wrap 
                                    done))
 {-# INLINE foldBind #-}
+
 instance Applicative (Folding f m) where
   pure r = Folding (\construct wrap done -> done r) 
   phi <*> psi = Folding (\construct wrap done -> 
@@ -114,7 +124,6 @@ instance MonadTrans (Folding f) where
   lift ma = Folding (\constr wrap done -> 
     wrap (liftM done ma))
 
-
 instance Functor f => MFunctor (Folding f) where
   hoist trans phi = Folding (\construct wrap done -> 
     getFolding phi construct (wrap . trans) done)
@@ -124,9 +133,6 @@ instance (MonadIO m, Functor f) => MonadIO (Folding f m) where
              wrap (liftM done (liftIO io))
                 )
   {-# INLINE liftIO #-}
-
-type List a = Series (Of a) Identity ()
-
 
 -- -------------------------------------
 -- optimization operations: wrapped case
@@ -200,4 +206,80 @@ buildSeriesx = \phi -> phi Construct Wrap Done
     
     #-}
 
+foldFree_ :: (Functor f, Monad m) => FreeT f m t -> Folding_ f m t
+foldFree_ f construct wrap done = outer f where
+   outer = wrap
+         . liftM (\case Free.Pure r -> done r
+                        Free fr     -> construct (fmap outer fr)) 
+         . runFreeT
+{-# INLINE foldFree_ #-}
 
+buildFree_ :: Monad m => Folding_ f m r -> FreeT f m r 
+buildFree_ phi = phi (FreeT . return . Free) 
+                     (FreeT . (>>= runFreeT )) 
+                     (FreeT . return . Free.Pure)
+{-# INLINE buildFree_ #-}
+
+foldFreeT  :: (Functor f, Monad m) => FreeT f m t -> Folding f m t
+foldFreeT f = Folding (foldFree_ f)
+{-# INLINE[0] foldFreeT  #-}
+
+buildFreeT  :: (Functor f, Monad m) =>  Folding f m t -> FreeT f m t 
+buildFreeT (Folding phi) = buildFree_ phi 
+{-# INLINE[0] buildFreeT #-}
+
+{-# RULES
+  "foldFreeT/buildFreeT" forall phi.
+    foldFreeT (buildFreeT phi) = phi
+    #-}
+
+foldProducer_ :: Monad m => Pipes.Producer a m r -> Folding_ (Of a) m r
+foldProducer_ = \prod construct wrap done ->
+    let loop = \case Pipes.M mp         -> wrap (liftM loop mp)
+                     Pipes.Pure r       -> done r
+                     Pipes.Respond a go -> construct (a :> loop (go ()))
+                     Pipes.Request x f  -> Pipes.closed x
+    in  loop prod
+{-# INLINE foldProducer_ #-}
+
+foldProducer__ :: Monad m => Pipes.Producer a m r -> Folding_ (Of a) m r
+foldProducer__ = \prod construct wrap done ->
+    let loop = \case Pipes.M mp         -> mp >>= loop
+                     Pipes.Pure r       -> return (done r)
+                     Pipes.Respond a go -> liftM (\x -> construct (a :> x)) 
+                                                 (loop (go ()))
+                     Pipes.Request x f  -> return (Pipes.closed x)
+    in wrap (loop prod)
+{-# INLINE foldProducer__ #-}
+
+buildProducer_ :: Monad m =>  Folding_ (Of a) m r -> Pipes.Producer a m r 
+buildProducer_ = \phi -> phi (\(a :> p) -> Pipes.Respond a (\_ -> p)) Pipes.M Pipes.Pure
+{-# INLINE buildProducer_ #-}
+
+foldProducer :: Monad m => Pipes.Producer a m r -> Folding (Of a) m r
+foldProducer = \p -> Folding (foldProducer_ p)
+{-# INLINE[0] foldProducer #-}
+
+buildProducer :: Monad m =>  Folding (Of a) m r -> Pipes.Producer a m r 
+buildProducer  = \phi -> buildProducer_ (getFolding phi)
+{-# INLINE[0] buildProducer #-}
+
+{-# RULES
+  "foldProducer/buildProducer" forall phi.
+    foldProducer (buildProducer phi) = phi
+    #-}
+
+-- buildMonadPlus :: (MonadPlus (t m), MonadTrans t, Monad m)  => Folding (Of a) m () -> t m a
+-- buildMonadPlus = \(Folding phi) ->
+--           phi (\(a:> ma) -> lift (return a) `mplus` ma)
+--               (\mma -> join (lift mma))
+--               (\_ -> mzero)
+-- {-# INLINE[0] buildMonadPlus #-'}
+
+-- foldMonadPlus :: (MonadPlus (t m), MonadTrans t, Monad m) => t m a -> Folding (Of a) m () 
+-- foldMonadPlus = \tma -> Folding 
+--   (\construct wrap done -> 
+--         wrap (do a <- tma
+--                  return (construct (a :> done ())))
+--   )
+-- {-# INLINE[0] foldMonadPlus #-}

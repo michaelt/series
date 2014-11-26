@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase, RankNTypes, BangPatterns #-}
-module Series.Prelude.Naive where
+module Series.Prelude.Direct where
 import Series.Types
 import Control.Monad hiding (filterM, mapM)
 import Data.Functor.Identity
