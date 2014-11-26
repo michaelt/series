@@ -58,8 +58,8 @@ in each case the (only) "fusion" rule is of the form
      
 It may be that the resulting implementations are better at making 
 it past the impediments of `criterion`, but some benchmarks on 
-more and less complex compositions of functions `f.g.h` can be 
-seen here:
+more and less complex compositions of functions `f.g.h`, with and without
+defintions via `Folding`, can be seen here:
 
 ![ ](http://michaelt.github.io/images/seriesbench.png)
 
