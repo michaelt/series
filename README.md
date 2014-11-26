@@ -65,11 +65,12 @@ seen here:
 
 The rest of the report is
 [here](http://michaelt.github.io/bench/seriesbench.html). Lines
-marked 'f.g.h/FUSED' bench compositions of functions defined
+marked 'f.g.h/FOLDING' bench compositions of functions defined
 through the fusion framework described above; those marked
 'f.g.h' bench compositions of functions given ordinary
-recursive definitions using the constructors of the `Series`, `FreeT` and `Producer` (`Proxy`) datatype. The corresponding programs written with `Data.List` and
-`Data.Vector.Unboxed` are marked 'list' and 'vector'
+definitions using the constructors or as they are exported by 
+suitable libraries. Functions from `Data.Vector.Unboxed` are 
+marked 'vector' and are included for comparison.
 
 The benchmarks are pure and thus use `Folding (Of a) Identity ()`, 
 `Series (Of a) Identity ()` and `[a]`. It is interesting that for these benchmarks, the
