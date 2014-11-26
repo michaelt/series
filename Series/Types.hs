@@ -269,17 +269,25 @@ buildProducer  = \phi -> buildProducer_ (getFolding phi)
     foldProducer (buildProducer phi) = phi
     #-}
 
--- buildMonadPlus :: (MonadPlus (t m), MonadTrans t, Monad m)  => Folding (Of a) m () -> t m a
--- buildMonadPlus = \(Folding phi) ->
---           phi (\(a:> ma) -> lift (return a) `mplus` ma)
---               (\mma -> join (lift mma))
---               (\_ -> mzero)
--- {-# INLINE[0] buildMonadPlus #-'}
+buildList_ :: Folding_ (Of a) Identity () -> [a]
+buildList_ phi = phi (\(a :> as) -> a : as)
+                     (\(Identity xs) -> xs)
+                     (\() -> []) 
+{-# INLINE buildList_ #-}
+foldList_ :: [a] -> Folding_ (Of a) Identity () 
+foldList_ xs = \construct wrap done -> 
+           foldr (\x r -> construct (x:>r)) (done ()) xs
+{-# INLINE foldList_ #-}
+buildList :: Folding (Of a) Identity () -> [a]
+buildList = \(Folding phi) -> buildList_ phi
+{-# INLINE[0] buildList #-}
 
--- foldMonadPlus :: (MonadPlus (t m), MonadTrans t, Monad m) => t m a -> Folding (Of a) m () 
--- foldMonadPlus = \tma -> Folding 
---   (\construct wrap done -> 
---         wrap (do a <- tma
---                  return (construct (a :> done ())))
---   )
--- {-# INLINE[0] foldMonadPlus #-}
+foldList :: [a] -> Folding (Of a) Identity () 
+foldList = \xs -> Folding (foldList_ xs)
+{-# INLINE[0] foldList #-}
+      
+
+{-# RULES
+  "foldList/buildList" forall phi.
+    foldList(buildList phi) = phi
+    #-}               

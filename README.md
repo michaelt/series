@@ -35,20 +35,25 @@ In each `Prelude`, operations of the sort
      f_producer :: Producer a m r -> Producer b m z
      f_freet :: FreeT f m r -> FreeT g m s
      f_series :: Series (Of a) m r -> Series (Of b) m r
+     f_list :: [a] -> [a]
 
 and the like are implemented as
 
      buildProducer . f_folding . foldProducer
      buildFreeT . f_folding . foldFreeT
      buildSeries . f_folding . foldSeries
+     buildList . f_folding . foldList
+     
 
-where `f_folding` is the appropriate function of `Folding`s
+where `f_folding` is the appropriate function of `Folding`s. The different
+`Prelude` s thus differ mostly by find and replace. 
 
 In each case the only "fusion" rule is of the form
 
      buildProducer (foldProducer phi) = phi
      buildFreeT (foldFreeT phi) = phi
      buildSeries (foldSeries phi) = phi
+     buildList (foldList phi) = phi  
      
 Some benchmarks on more and less complex compositions of
 functions can be seen here. 
@@ -64,8 +69,7 @@ recursive definitions using the constructors of the `Series`, `FreeT` and `Produ
 `Data.Vector.Unboxed` are marked 'list' and 'vector'
 
 The benchmarks are pure and thus use `Folding (Of a) Identity ()`, 
-`Series (Of a) Identity ()`, and the like which is isomorphic to 
-Haskell lists. It is interesting that the
+`Series (Of a) Identity ()` and `[a]`. It is interesting that for these benchmarks, the
 present fusion framework is *always* faster than Data.List. It is
 also more reliable than both vector and Data.List (though vector
 is of course much faster where fusion succeeds.) But these cases

@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase, RankNTypes #-}
 module Series.Interop where
-import Series.Types
+import Series.Types hiding (buildList)
 import Control.Monad
 import Data.Functor.Identity
 import qualified Control.Monad.Trans.Free as Free  
