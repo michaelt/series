@@ -48,15 +48,18 @@ and the like are implemented as
 where `f_folding` is the appropriate function of `Folding`s. The different
 `Prelude` s thus differ mostly by find and replace. 
 
-In each case the only "fusion" rule is of the form
+In one respect the library follows `vector` rather than `Data.List`: 
+in each case the (only) "fusion" rule is of the form
 
      buildProducer (foldProducer phi) = phi
      buildFreeT (foldFreeT phi) = phi
      buildSeries (foldSeries phi) = phi
      buildList (foldList phi) = phi  
      
-Some benchmarks on more and less complex compositions of
-functions can be seen here. 
+It may be that the resulting implementations are better at making 
+it past the impediments of `criterion`, but some benchmarks on 
+more and less complex compositions of functions `f.g.h` can be 
+seen here:
 
 ![ ](http://michaelt.github.io/images/seriesbench.png)
 
