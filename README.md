@@ -28,9 +28,12 @@ and `Producer` sort, using the almost-correct equivalences
 and a number of potential others, e.g. `LogicT`, `Conduit.Source`, etc 
 which are equivalent to `Folding ((,) a) m ()`. The `Series` type 
 defined here is an attempt at an optimized `FreeT` aimed
-at improving the pipes usage `FreeT (Producer a m) m r` and the like.
+at improving the pipes usage `FreeT (Producer a m) m r` and the like.  
+Some decisions have been made homogeneous with `ertes`'s similarly 
+motivated [`fuse` package](http://hub.darcs.net/ertes/fuse), 
+which may be more interesting.
 
-In each `Prelude`, operations of the sort 
+In each of the included `Prelude`s, operations of the sort 
 
      f_producer :: Producer a m r -> Producer b m z
      f_freet :: FreeT f m r -> FreeT g m s

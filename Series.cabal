@@ -35,6 +35,7 @@ library
                        Series.Producer.Prelude,
                        Series.Types, 
                        Series.ByteString,
+                       Series.Folding.ByteString, 
                        Series.Interop
     -- other-modules:       
   other-extensions:    LambdaCase, RankNTypes, EmptyCase, 

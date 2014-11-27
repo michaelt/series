@@ -1,7 +1,8 @@
 import Series.Types
 import Series.Combinators
-import qualified Series.ByteString as SB
-import Series.MonadPlus.Prelude hiding (replicateM)
+-- import qualified Series.ByteString as SB
+
+import Series.List.Prelude 
 import Prelude hiding (map, filter, drop, take, sum
                       , iterate, repeat, replicate
                       , splitAt, mapM, takeWhile, scanr)
@@ -14,13 +15,40 @@ import System.IO
 import qualified Data.ByteString as B
 import Pipes
 
+-- 
+main =  print $ number (10 :: Int)
+-- number = sum2 
+--                . P.take 10000000
+--                . drop 100
+--                . map2 (\x -> 3*x + 1)
+--                . P.filter even
+--                . (iterate (\x -> x+1))
+               
+-- {-# INLINE number #-}
+number n = P.sum 
+               (P.take 10000000
+                (P.drop 100
+                  (P.map (\x -> 3*x + 1)
+                  (P.filter even
+                 (P.iterate (\x -> x+1) (n )  :: [Int])
+                ))))
+  
+  
+-- main = print $ P.sum 
+--                . P.take 10000000
+--                . P.drop 100
+--                . P.map (\x -> 3*x + 1)
+--                . P.filter even
+--                $ (P.iterate (\x -> x+1) (10 :: Int)  :: [Int])
+--          
+-- {-# INLINE long_fused  #-}
 -- main = print =<< sum2 ( map B.length SB.stdinLn) 
 -- main = print $ runIdentity $ foldl' (+) 0 (replicate 30 1)
-main = getFolding (foldMonadPlus $ (replicate 10 1 :: ListT IO Int) )
-                          (\(str :> x) -> print str >> x) 
-                          join 
-                          return
-       
+-- main = getFolding (foldMonadPlus $ (replicate 10 1 :: ListT IO Int) )
+                          -- (\(str :> x) -> print str >> x) 
+                          -- join 
+                          -- return
+                          --        
 -- main = getFolding (foldSeries stdinLn)
 --                    (\(str :> x) -> putStrLn str >> x) 
 --                    join 
