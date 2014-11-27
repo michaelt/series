@@ -28,19 +28,19 @@ and `Producer` sort, using the almost-correct equivalences
 and a number of potential others, e.g. `LogicT`, `Conduit.Source`, etc 
 which are equivalent to `Folding ((,) a) m ()`. The `Series` type 
 defined here is an attempt at an optimized `FreeT` aimed
-at improving the pipes usage `FreeT (Producer a m) m r` and the like.  
-Some decisions have been made homogeneous with `ertes`'s similarly 
-motivated [`fuse` package](http://hub.darcs.net/ertes/fuse), 
-which may be more interesting.
+at improving the pipes usage `FreeT (Producer a m) m r` and
+the like. (Some decisions have been made homogeneous with 
+`ertes`'s similarly motivated [`fuse` package](http://hub.darcs.net/ertes/fuse), 
+which calls it `FreeT` replacement `List`; it may be more interesting.)
 
-In each of the included `Prelude`s, operations of the sort 
+In each of the `Prelude`s included here, operations with types like
 
      f_producer :: Producer a m r -> Producer b m z
      f_freet :: FreeT f m r -> FreeT g m s
      f_series :: Series (Of a) m r -> Series (Of b) m r
      f_list :: [a] -> [a]
 
-and the like are implemented as
+are implemented as
 
      buildProducer . f_folding . foldProducer
      buildFreeT . f_folding . foldFreeT
@@ -49,10 +49,10 @@ and the like are implemented as
      
 
 where `f_folding` is the appropriate function of `Folding`s. The different
-`Prelude` s thus differ mostly by find and replace. 
+`Prelude` s thus differ mostly by find-and-replace. Functions that enter or
+exit space of 'serial' types use only one of the fusion operators. 
 
-In one respect the library follows `vector` rather than `Data.List`: 
-in each case the (only) "fusion" rule is of the form
+In each case the principal (only) "fusion" rule is of the form
 
      buildProducer (foldProducer phi) = phi
      buildFreeT (foldFreeT phi) = phi
@@ -80,5 +80,7 @@ The benchmarks are pure and thus use `Folding (Of a) Identity ()`,
 present fusion framework is *always* faster than Data.List. It is
 also more reliable than both vector and Data.List (though vector
 is of course much faster where fusion succeeds.) But these cases
-are perhaps somewhat stylized. I am also surprised so far that
-newtype wrapping makes the fusion rules more reliable.
+are perhaps somewhat stylized, and in my experience `criterion` is a bit 
+cruel to anything that requires specialization and other optimization. 
+I am also surprised so far that newtype wrapping makes the fusion 
+rules more reliable.
