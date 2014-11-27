@@ -83,4 +83,12 @@ is of course much faster where fusion succeeds.) But these cases
 are perhaps somewhat stylized, and in my experience `criterion` is a bit 
 cruel to anything that requires specialization and other optimization. 
 I am also surprised so far that newtype wrapping makes the fusion 
-rules more reliable.
+rules more reliable.  
+
+The real objective is to optimize pipes functions with types like
+
+     lines :: Monad m 
+           => Producer ByteString m r 
+           -> FreeT (Producer ByteString m) m r
+
+which introduce a certain perceptible clunkiness. 
