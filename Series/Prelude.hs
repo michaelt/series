@@ -1,6 +1,28 @@
 {-# LANGUAGE LambdaCase, RankNTypes, ScopedTypeVariables #-}
-module Series.Prelude where
-import Series.Folding.Prelude
+module Series.Prelude 
+  (concats, 
+   cons, 
+   drop, 
+   filter,
+   filterM,
+   foldl',
+   yield,
+   iterate,
+   iterateM,
+   map,
+   mapM,
+   repeat,
+   repeatM,
+   replicate,
+   scanr,
+   span, 
+   splitAt, 
+   sum,
+   take,
+   takeWhile,
+   enumFromStepN
+   ) where
+import qualified Series.Folding.Prelude as F
 import Series.Types
 import Control.Monad hiding (filterM, mapM)
 import Data.Functor.Identity
@@ -8,9 +30,9 @@ import Control.Monad.Trans
 import qualified System.IO as IO
 import Prelude hiding (map, filter, drop, take, sum
                       , iterate, repeat, replicate, splitAt
-                      , takeWhile, enumFrom, enumFromTo)
+                      , takeWhile, enumFrom, enumFromTo
+                      , mapM, scanr, span)
 
-               
 
 -- ---------------
 -- ---------------
@@ -18,16 +40,45 @@ import Prelude hiding (map, filter, drop, take, sum
 -- ---------------
 -- ---------------
 
+-- ------
+-- concats
+-- ------
+
+concats_ :: Monad m =>  Series (Folding (Of a) m) m r -> Series (Of a) m r
+concats_  = buildSeries 
+                . F.concats 
+                . foldSeries
+{-# INLINE concats_ #-}
+
+concats :: Monad m =>  Series (Series (Of a) m) m r -> Series (Of a) m r
+concats  = buildSeries 
+                . F.concats 
+                . (\(Folding phi) -> 
+                       Folding (\c w d -> phi (c . foldSeries) w d))
+                . foldSeries
+{-# INLINE concats #-}
+
+
+-- ------
+-- cons
+-- ------
+cons :: Monad m => a -> Series (Of a) m r -> Series (Of a) m r 
+cons a = buildSeries . F.cons a . foldSeries
+{-# INLINE cons #-}
+
+
+-- ------
+-- yield
+-- ------
 yield :: Monad m => a -> Series (Of a) m ()
-yield = buildSeries . lyield
+yield = buildSeries . F.yield
 {-# INLINE yield #-}
 
 -- -------
 -- foldl'
 -- -------
 foldl' :: Monad m => forall a b . (b -> a -> b) -> b -> Series (Of a) m r -> m b
-foldl' op b0 = (\(Folding phi) -> foldl_ op b0 phi)
-              . foldSeries
+foldl' op b0 = F.foldl op b0 . foldSeries 
 {-# INLINE foldl' #-}
 
 -- -------
@@ -36,28 +87,20 @@ foldl' op b0 = (\(Folding phi) -> foldl_ op b0 phi)
 
 scanr :: Monad m => (a -> b -> b) -> b -> Series (Of a) m r -> Series (Of b) m r
 scanr op b = buildSeries 
-           . (\(Folding phi) -> Folding (jscanr op b phi)) 
+           . F.scanr op b
            . foldSeries 
 {-# INLINE scanr #-}
 
 
-scanr2 :: Monad m => (a -> b -> b) -> b -> Series (Of a) m r -> Series (Of b) m r
-scanr2 op b = buildSeries 
-              . (\(Folding phi) -> Folding (lscanr_ phi op b)) 
-              . foldSeries 
-{-# INLINE scanr2 #-}
 
 -- ---------------
 -- sum 
 -- ---------------
 
 sum :: (Monad m, Num a) => Series (Of a) m () -> m a
-sum  = lsum . foldSeries 
+sum  = F.sum . foldSeries 
 {-# INLINE sum #-}
 
-sum2 :: (Monad m, Num n) => Series (Of n) m r -> m n
-sum2 = foldl' (+) 0 
-{-# INLINE sum2 #-}
 
 -- ---------------
 -- replicate 
@@ -68,7 +111,7 @@ replicate n = take n . repeat
 {-# INLINE replicate #-}
 
 replicateM :: Monad m => Int -> m a -> Series (Of a) m ()
-replicateM n a = buildSeries (lreplicateM n a)
+replicateM n a = buildSeries (F.replicateM n a)
 {-# INLINE replicateM #-}
 
 -- ---------------
@@ -76,11 +119,11 @@ replicateM n a = buildSeries (lreplicateM n a)
 -- ---------------
 
 iterate :: (a -> a) -> a -> Series (Of a) m r
-iterate f  = buildSeries . literate f 
+iterate f  = buildSeries . F.iterate f 
 {-# INLINE iterate #-}
 
 iterateM :: Monad m => (a -> m a) -> m a -> Series (Of a) m r
-iterateM = \f m -> buildSeries (literateM f m)
+iterateM = \f m -> buildSeries (F.iterateM f m)
 {-# INLINE iterateM #-}
 
 -- ---------------
@@ -88,25 +131,23 @@ iterateM = \f m -> buildSeries (literateM f m)
 -- ---------------
 
 repeat :: a -> Series (Of a) m r
-repeat = buildSeries . (\a -> Folding (repeat_ a))
+repeat = buildSeries . F.repeat 
 {-# INLINE repeat #-}
 
 repeatM :: Monad m => m a -> Series (Of a) m r
-repeatM = buildSeries . lrepeatM
+repeatM = buildSeries . F.repeatM
 {-# INLINE repeatM #-}
 
 -- ---------------
 -- filter 
 -- ---------------
-filter2 :: (Monad m) => (a -> Bool) -> Series (Of a) m r -> Series (Of a) m r 
-filter2 pred = buildSeries . (\(Folding phi) -> Folding (filter_ phi pred)) . foldSeries
 
 filter  :: (Monad m) => (a -> Bool) -> Series (Of a) m r -> Series (Of a) m r               
-filter pred = buildSeries . lfilter pred . foldSeries
+filter pred = buildSeries . F.filter pred . foldSeries
 {-# INLINE filter #-}
 
 filterM  :: (Monad m) => (a -> m Bool) -> Series (Of a) m r -> Series (Of a) m r
-filterM pred = buildSeries . lfilterM pred . foldSeries
+filterM pred = buildSeries . F.filterM pred . foldSeries
 {-# INLINE filterM #-}
 
 -- ---------------
@@ -114,7 +155,7 @@ filterM pred = buildSeries . lfilterM pred . foldSeries
 -- ---------------
 
 drop :: (Monad m) => Int -> Series (Of a) m r -> Series (Of a) m r
-drop n = buildSeries . ldrop n . foldSeries
+drop n = buildSeries . F.drop n . foldSeries
 {-# INLINE drop #-}
 
 
@@ -123,50 +164,51 @@ drop n = buildSeries . ldrop n . foldSeries
 -- ---------------
 
 
-take2 :: (Monad m, Functor f) => Int -> Series f m r -> Series f m ()
-take2 n = buildSeries . (\(Folding phi)  -> Folding (jtake_ phi n)) . foldSeries
-{-# INLINE take2 #-}
-
 take :: (Monad m, Functor f) => Int -> Series f m r -> Series f m ()
-take n = buildSeries . ltake n . foldSeries
+take n = buildSeries . F.take n . foldSeries
 {-# INLINE take #-}
 
 takeWhile :: Monad m => (a -> Bool) -> Series (Of a) m r -> Series (Of a) m ()
-takeWhile pred = buildSeries . ltakeWhile pred . foldSeries 
+takeWhile pred = buildSeries . F.takeWhile pred . foldSeries 
 {-# INLINE takeWhile #-}
-
-takeWhile2 :: Monad m => (a -> Bool) -> Series (Of a) m r -> Series (Of a) m ()
-takeWhile2 pred = buildSeries 
-               . (\(Folding fold) -> Folding (jtakeWhile_ fold pred)) 
-               . foldSeries
-{-# INLINE takeWhile2#-}
-
 
 -- ---------------
 -- map
 -- ---------------
 
-map2 :: Monad m => (a -> b) -> Series (Of a) m r -> Series (Of b) m r
-map2 f = buildSeries . (\(Folding phi) -> Folding (map_ phi f)) . foldSeries
-{-# INLINE map2 #-}
 
 map :: Monad m => (a -> b) -> Series (Of a) m r -> Series (Of b) m r
-map f = buildSeries . lmap f . foldSeries
+map f = buildSeries . F.map f . foldSeries
 {-# INLINE map #-}
 
 mapM :: Monad m => (a -> m b) -> Series (Of a) m r -> Series (Of b) m r
-mapM f = buildSeries . lmapM f . foldSeries
+mapM f = buildSeries . F.mapM f . foldSeries
 {-# INLINE mapM #-}
 
-
-
-
-enumFrom n = buildSeries (Folding (lenumFrom n))
-enumFromTo n m = buildSeries (Folding (lenumFromTo n m))
-enumFromToStep n m k = buildSeries (Folding (lenumFromToStep n m k))
+span :: Monad m => (a -> Bool) -> Series (Of a) m r 
+      -> Series (Of a) m (Series (Of a) m r)
+span pred = 
+  buildSeries 
+  . ( \(Folding phi) -> 
+        Folding (\c w d -> F.jspan phi pred c w (d . buildSeries . Folding)))
+  . foldSeries
+  
+  
+splitAt :: (Monad m, Functor f) 
+         => Int 
+         -> Series f m r 
+         -> Series f m (Series f m r)
+splitAt n = 
+   buildSeries 
+   . (\(Folding phi) -> Folding (\c w d -> F.jsplitAt_ phi n c w (d . buildSeries . Folding)))
+   . foldSeries 
+{-# INLINE splitAt #-}
+enumFrom n = buildSeries (Folding (F.lenumFrom n))
+enumFromTo n m = buildSeries (Folding (F.lenumFromTo n m))
+enumFromToStep n m k = buildSeries (Folding (F.lenumFromToStep n m k))
 
 enumFromStepN :: (Monad m, Num a) => a -> a -> Int -> Series (Of a) m ()
-enumFromStepN start step n = buildSeries (Folding (lenumFromStepN start step n))
+enumFromStepN start step n = buildSeries (Folding (F.lenumFromStepN start step n))
 {-# INLINE enumFromStepN #-}
 
 

@@ -14,8 +14,9 @@ import qualified Series.List.Prelude as L
 import qualified Control.Monad.Trans.Free as F
  
 import Prelude hiding (map, filter, drop, take, sum
-                      , iterate, repeat, replicate
-                      , splitAt, mapM, takeWhile)
+                      , iterate, repeat, replicate, splitAt
+                      , takeWhile, enumFrom, enumFromTo
+                      , mapM, scanr, span)
 import qualified Prelude as P
 import Data.Functor.Identity
 import Pipes hiding (yield)
@@ -34,43 +35,44 @@ big = 10000000
 -- -------------------
 
 long_fused :: Int -> Int
-long_fused  n = runIdentity $ sum2 ( 
-             (take2 n
+long_fused  n = runIdentity $ sum ( 
+             (take n
               (drop 100
-                (map2 (\x -> 3*x + 1)
-                (filter2 even
+                (map (\x -> 3*x + 1)
+                (filter even
                ((iterate (\x -> x+1) (10 :: Int) ) :: Series (Of Int) Identity ())
               )))))  
 {-# INLINE long_fused  #-}
 
 long_fused_free :: Int -> Int
-long_fused_free  n = runIdentity $ F.sum2 ( 
-             (F.take2 n
+long_fused_free  n = runIdentity $ F.sum ( 
+             (F.take n
               (F.drop 100
-                (F.map2 (\x -> 3*x + 1)
+                (F.map (\x -> 3*x + 1)
                 (F.filter even
                ((F.iterate (\x -> x+1) (10 :: Int) ) :: F.FreeT (Of Int) Identity ())
               )))))  
 {-# INLINE long_fused_free  #-}
 
 long_fused_pipes :: Int -> Int
-long_fused_pipes  n = runIdentity $ Pr.sum2 ( 
-             (Pr.take2 n
+long_fused_pipes  n = runIdentity $ Pr.sum ( 
+             (Pr.take n
               (Pr.drop 100
-                (Pr.map2 (\x -> 3*x + 1)
+                (Pr.map (\x -> 3*x + 1)
                 (Pr.filter even
                ((Pr.iterate (\x -> x+1) (10 :: Int) ) :: Producer Int Identity ())
               )))))
 {-# INLINE long_fused_pipes  #-}
 --
 long_fused_list :: Int -> Int
-long_fused_list  n =  L.sum2 ( 
-             (L.take2 n
+long_fused_list  n =  L.sum ( 
+             (L.take n
               (L.drop 100
-                (L.map2 (\x -> 3*x + 1)
+                (L.map (\x -> 3*x + 1)
                 (L.filter even
                ((L.iterate (\x -> x+1) (10 :: Int) ) :: [Int])
               )))))
+              
 {-# INLINE long_fused_list  #-}
 long_naive  :: Int -> Int
 long_naive  n = runIdentity $ N.sum (
@@ -122,7 +124,7 @@ short_free :: Int -> Int
 short_free = \n -> runIdentity $ F.sum (F.take n (F.iterate (\x -> x+1) (10 :: Int) :: F.FreeT (Of Int) Identity ()))
 {-# INLINE short_free #-}
 short_fused :: Int -> Int
-short_fused = \n -> runIdentity $ sum2 (take2 n (iterate (\x -> x+1) (10 :: Int) :: Series (Of Int) Identity ()))
+short_fused = \n -> runIdentity $ sum (take n (iterate (\x -> x+1) (10 :: Int) :: Series (Of Int) Identity ()))
 {-# INLINE short_fused #-}
 short_producer :: Int -> Int
 short_producer = \n -> runIdentity $ Pr.sum (Pr.take n (Pr.iterate (\x -> x+1) (10 :: Int) :: Producer Int Identity ()))
@@ -157,7 +159,7 @@ rN n = runIdentity (N.sum (N.replicate n 1))
 
 
 rF :: Int -> Int 
-rF n = runIdentity (sum2 (replicate n 1))
+rF n = runIdentity (sum (replicate n 1))
 {-# INLINE rF #-}
 
 rFr :: Int -> Int 

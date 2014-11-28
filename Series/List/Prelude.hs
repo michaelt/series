@@ -1,15 +1,39 @@
-
 {-# LANGUAGE LambdaCase, RankNTypes, ScopedTypeVariables #-}
-module Series.List.Prelude where
+module Series.List.Prelude 
+  ( -- concats, 
+   cons, 
+   drop, 
+   filter,
+   -- filterM,
+   foldl',
+   yield,
+   iterate,
+   -- iterateM,
+   map,
+   -- mapM,
+   repeat,
+   -- repeatM,
+   replicate,
+   scanr,
+   -- span, 
+   -- splitAt, 
+   sum,
+   take,
+   takeWhile,
+   enumFromStepN
+   ) where
 import Series.Types
-import Series.Folding.Prelude
+import qualified Series.Folding.Prelude as F
 import Control.Monad hiding (filterM, mapM)
 import Data.Functor.Identity
 import Control.Monad.Trans
+import Control.Monad.Trans.Free (FreeT)
 import qualified System.IO as IO
+import Pipes hiding (yield)
 import Prelude hiding (map, filter, drop, take, sum
                       , iterate, repeat, replicate, splitAt
-                      , takeWhile, enumFrom, enumFromTo)
+                      , takeWhile, enumFrom, enumFromTo
+                      , mapM, scanr, span)
 
 
 -- ---------------
@@ -18,17 +42,40 @@ import Prelude hiding (map, filter, drop, take, sum
 -- ---------------
 -- ---------------
 
+-- ------
+-- concats
+-- ------
+
+-- 
+-- concats :: Monad m =>  FreeT (Producer a m) m r -> [a]
+-- concats  = buildList 
+--                 . F.concats 
+--                 . (\(Folding phi) -> 
+--                        Folding (\c w d -> phi (c . foldList) w d))
+--                 . foldFreeT
+-- {-# INLINE concats #-}
+
+
+-- ------
+-- cons
+-- ------
+cons :: a -> [a] -> [a] 
+cons a = buildList . F.cons a . foldList
+{-# INLINE cons #-}
+
+
+-- ------
+-- yield
+-- ------
 yield :: a -> [a]
-yield = buildList . lyield
+yield = buildList . F.yield
 {-# INLINE yield #-}
 
 -- -------
 -- foldl'
 -- -------
 foldl' :: forall a b . (b -> a -> b) -> b -> [a] -> b
-foldl' op b0 = runIdentity
-              . (\(Folding phi) -> foldl_ op b0 phi)
-              . foldList
+foldl' op b0 = runIdentity . F.foldl op b0 . foldList 
 {-# INLINE foldl' #-}
 
 -- -------
@@ -37,28 +84,20 @@ foldl' op b0 = runIdentity
 
 scanr :: (a -> b -> b) -> b -> [a] -> [b]
 scanr op b = buildList 
-           . (\(Folding phi) -> Folding (jscanr op b phi)) 
+           . F.scanr op b
            . foldList 
 {-# INLINE scanr #-}
 
 
-scanr2 :: (a -> b -> b) -> b -> [a] -> [b]
-scanr2 op b = buildList 
-              . (\(Folding phi) -> Folding (lscanr_ phi op b)) 
-              . foldList 
-{-# INLINE scanr2 #-}
 
 -- ---------------
 -- sum 
 -- ---------------
 
-sum :: (Num a) => [a] -> a
-sum  = runIdentity . lsum . foldList 
+sum :: Num n =>  [n] -> n
+sum  = runIdentity . F.sum . foldList 
 {-# INLINE sum #-}
 
-sum2 :: (Num n) => [n] -> n
-sum2 = foldl' (+) 0 
-{-# INLINE sum2 #-}
 
 -- ---------------
 -- replicate 
@@ -68,46 +107,44 @@ replicate ::  Int -> a -> [a]
 replicate n = take n . repeat
 {-# INLINE replicate #-}
 
--- replicateM :: Int -> m a -> [a]
--- replicateM n a = buildList (lreplicateM n a)
+-- replicateM :: Monad m => Int -> m a -> [a]
+-- replicateM n a = buildList (F.replicateM n a)
 -- {-# INLINE replicateM #-}
 
 -- ---------------
 -- iterate
 -- ---------------
 
-iterate ::  (a -> a) -> a -> [a]
-iterate f  = buildList . literate f 
+iterate :: (a -> a) -> a -> [a]
+iterate f  = buildList . F.iterate f 
 {-# INLINE iterate #-}
 
 -- iterateM :: Monad m => (a -> m a) -> m a -> [a]
--- iterateM = \f m -> buildList (literateM f m)
+-- iterateM = \f m -> buildList (F.iterateM f m)
 -- {-# INLINE iterateM #-}
 
 -- ---------------
 -- repeat
 -- ---------------
 
-repeat :: a -> [a]
-repeat = buildList . (\a -> Folding (repeat_ a))
+repeat ::  a -> [a]
+repeat = buildList . F.repeat 
 {-# INLINE repeat #-}
 
 -- repeatM :: Monad m => m a -> [a]
--- repeatM = buildList . lrepeatM
+-- repeatM = buildList . F.repeatM
 -- {-# INLINE repeatM #-}
 
 -- ---------------
 -- filter 
 -- ---------------
-filter2 :: (a -> Bool) -> [a] -> [a] 
-filter2 pred = buildList . (\(Folding phi) -> Folding (filter_ phi pred)) . foldList
 
-filter  ::  (a -> Bool) -> [a] -> [a]               
-filter pred = buildList . lfilter pred . foldList
+filter  :: (a -> Bool) -> [a] -> [a]               
+filter pred = buildList . F.filter pred . foldList
 {-# INLINE filter #-}
--- 
+
 -- filterM  :: (Monad m) => (a -> m Bool) -> [a] -> [a]
--- filterM pred = buildList . lfilterM pred . foldList
+-- filterM pred = buildList . F.filterM pred . foldList
 -- {-# INLINE filterM #-}
 
 -- ---------------
@@ -115,7 +152,7 @@ filter pred = buildList . lfilter pred . foldList
 -- ---------------
 
 drop :: Int -> [a] -> [a]
-drop n = buildList . ldrop n . foldList
+drop n = buildList . F.drop n . foldList
 {-# INLINE drop #-}
 
 
@@ -124,85 +161,56 @@ drop n = buildList . ldrop n . foldList
 -- ---------------
 
 
-take2 ::  Int -> [a] -> [a]
-take2 n = buildList . (\(Folding phi)  -> Folding (jtake_ phi n)) . foldList
-{-# INLINE take2 #-}
-
 take :: Int -> [a] -> [a]
-take n = buildList . ltake n . foldList
+take n = buildList . F.take n . foldList
 {-# INLINE take #-}
 
-takeWhile ::   (a -> Bool) -> [a] -> [a]
-takeWhile pred = buildList . ltakeWhile pred . foldList 
+takeWhile :: (a -> Bool) -> [a] -> [a]
+takeWhile pred = buildList . F.takeWhile pred . foldList 
 {-# INLINE takeWhile #-}
-
-takeWhile2 ::  (a -> Bool) -> [a] -> [a]
-takeWhile2 pred = buildList 
-               . (\(Folding fold) -> Folding (jtakeWhile_ fold pred)) 
-               . foldList
-{-# INLINE takeWhile2#-}
 
 -- ---------------
 -- map
 -- ---------------
 
-map2 ::  (a -> b) -> [a] -> [b]
-map2 f = buildList . (\(Folding phi) -> Folding (map_ phi f)) . foldList
-{-# INLINE map2 #-}
 
-map ::  (a -> b) -> [a] -> [b]
-map f = buildList . lmap f . foldList
+map :: (a -> b) -> [a] -> [b]
+map f = buildList . F.map f . foldList
 {-# INLINE map #-}
 
 -- mapM :: Monad m => (a -> m b) -> [a] -> [b]
--- mapM f = buildList . lmapM f . foldList
+-- mapM f = buildList . F.mapM f . foldList
 -- {-# INLINE mapM #-}
+-- 
+-- span :: Monad m => (a -> Bool) -> [a] 
+--       -> Producer a m ([a])
+-- span pred = 
+--   buildList 
+--   . ( \(Folding phi) -> 
+--         Folding (\c w d -> F.jspan phi pred c w (d . buildList . Folding)))
+--   . foldList
+--   
+--   
+-- splitAt :: (Monad m) 
+--          => Int 
+--          -> [a] 
+--          -> ([a],[a])
+-- splitAt n = 
+--    buildList 
+--    . (\(Folding phi) -> Folding (\c w d -> F.jsplitAt_ phi n c w (d . buildList . Folding)))
+--    . foldList 
+-- {-# INLINE splitAt #-}
 
 
+enumFrom n = buildList (Folding (F.lenumFrom n))
+enumFromTo n m = buildList (Folding (F.lenumFromTo n m))
+enumFromToStep n m k = buildList (Folding (F.lenumFromToStep n m k))
 
-
-enumFrom n = buildList (Folding (lenumFrom n))
-enumFromTo n m = buildList (Folding (lenumFromTo n m))
-enumFromToStep n m k = buildList (Folding (lenumFromToStep n m k))
-
-enumFromStepN :: (Num a) => a -> a -> Int -> [a]
-enumFromStepN start step n = buildList (Folding (lenumFromStepN start step n))
+enumFromStepN :: Num a => a -> a -> Int -> [a]
+enumFromStepN start step n = buildList (Folding (F.lenumFromStepN start step n))
 {-# INLINE enumFromStepN #-}
 
 
--- ---------------------------------------
--- IO fripperies copped from Pipes.Prelude
--- ---------------------------------------
 
 
--- stdinLn = Wrap loop where
---   loop = getLine >>= \str -> return (Construct (str :> Wrap loop))
--- 
--- jstdinLn = \construct wrap done -> 
---      let loop = wrap $ getLine >>= \str -> return (construct (str :> loop))
---      in loop 
---
--- stdinLn :: MonadIO m => Producer String m ()
--- stdinLn = fromHandle IO.stdin
--- {-# INLINABLE stdinLn #-}
--- 
--- -- | 'read' values from 'IO.stdin', ignoring failed parses
--- readLn :: (MonadIO m, Read a) => [a]
--- readLn = map read stdinLn
--- {-# INLINABLE readLn #-}
--- 
--- {-| Read 'String's from a 'IO.Handle' using 'IO.hGetLine'
--- 
---     Terminates on end of input
--- -}
--- fromHandle :: MonadIO m => IO.Handle -> Producer String m ()
--- fromHandle h = go
---   where
---     go = do
---         eof <- liftIO $ IO.hIsEOF h
---         unless eof $ do
---             str <- liftIO $ IO.hGetLine h
---             yield str
---             go
--- {-# INLINABLE fromHandle #-}     
--- 
+

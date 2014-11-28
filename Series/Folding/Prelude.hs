@@ -8,67 +8,61 @@ import qualified System.IO as IO
 import Prelude hiding (map, filter, drop, take, sum
                       , iterate, repeat, replicate, splitAt
                       , takeWhile, enumFrom, enumFromTo)
-
-
 -- ---------------
 -- ---------------
 -- Prelude
 -- ---------------
 -- ---------------
-
-lyield :: Monad m => a -> Folding (Of a) m ()
-lyield r = Folding (\construct wrap done -> construct (r :> done ()))
-{-# INLINE lyield #-}
+yield :: Monad m => a -> Folding (Of a) m ()
+yield r = Folding (\construct wrap done -> construct (r :> done ()))
+{-# INLINE yield #-}
 
 -- ---------------
 -- sum 
 -- ---------------
-lsum :: (Monad m, Num a) => Folding (Of a) m () -> m a
-lsum = \(Folding phi) -> phi (\(n :> mm) -> mm >>= \m -> return (m+n))
-                             join
-                             (\_ -> return 0)
-{-# INLINE lsum #-}
+sum :: (Monad m, Num a) => Folding (Of a) m () -> m a
+sum = \(Folding phi) -> phi (\(n :> mm) -> mm >>= \m -> return (m+n))
+                           join
+                           (\_ -> return 0)
+{-# INLINE sum #-}
 
 
 -- ---------------
 -- replicate 
 -- ---------------
 
-jreplicate :: Monad m => Int -> a -> Folding_ (Of a) m ()
-jreplicate n a c w d = take_ n (repeat_ a) c w d
-{-# INLINE jreplicate #-}
+replicate :: Monad m => Int -> a -> Folding (Of a) m ()
+replicate n a = Folding (take_ (repeat_ a) n)
+{-# INLINE replicate #-}
 
-lreplicate :: Monad m => Int -> a -> Folding (Of a) m ()
-lreplicate n a = Folding (take_ n (repeat_ a))
-{-# INLINE lreplicate #-}
 
-lreplicateM :: Monad m => Int -> m a -> Folding (Of a) m ()
-lreplicateM n a = Folding (take_ n (repeatM_ a))
-{-# INLINE lreplicateM #-}
-
+replicateM :: Monad m => Int -> m a -> Folding (Of a) m ()
+replicateM n a = Folding (take_ (repeatM_ a) n)
+{-# INLINE replicateM #-}
 
 -- ---------------
 -- iterate
 -- ---------------
-jiterate :: (a -> a) -> a -> Folding_ (Of a) m r
-jiterate = \f a construct wrap done -> 
-       construct (a :> jiterate f (f a) construct wrap done) 
-{-# INLINE jiterate #-}
+-- this can clearly be made non-recursive with eg numbers
+iterate_ :: (a -> a) -> a -> Folding_ (Of a) m r
+iterate_ f a = \construct wrap done -> 
+       construct (a :> iterate_ f (f a) construct wrap done) 
+{-# INLINE iterate_ #-}
 
-literate :: (a -> a) -> a -> Folding (Of a) m r
-literate f a = Folding (jiterate f a)
-{-# INLINE literate #-}
+iterate :: (a -> a) -> a -> Folding (Of a) m r
+iterate f a = Folding (iterate_ f a)
+{-# INLINE iterate #-}
 
 
-jiterateM :: Monad m => (a -> m a) -> m a -> Folding_ (Of a) m r
-jiterateM f ma = \construct wrap done -> 
+iterateM_ :: Monad m => (a -> m a) -> m a -> Folding_ (Of a) m r
+iterateM_ f ma = \construct wrap done -> 
      let loop mx = wrap $ liftM (\x -> construct (x :> loop (f x))) mx
      in loop ma
-{-# INLINE jiterateM #-}
+{-# INLINE iterateM_ #-}
 
-literateM :: Monad m => (a -> m a) -> m a -> Folding (Of a) m r
-literateM f a = Folding (jiterateM f a)
-{-# INLINE literateM #-}
+iterateM :: Monad m => (a -> m a) -> m a -> Folding (Of a) m r
+iterateM f a = Folding (iterateM_ f a)
+{-# INLINE iterateM #-}
 
 
 -- ---------------
@@ -80,30 +74,26 @@ repeat_ = \a construct wrap done ->
   let loop = construct (a :> loop) in loop
 {-# INLINE repeat_ #-}
 
+repeat :: a -> Folding (Of a) m r
+repeat a = Folding (repeat_ a)
+{-# INLINE repeat #-}
 
 repeatM_ :: Monad m => m a -> Folding_ (Of a) m r
 repeatM_ ma = \construct wrap done -> 
   let loop = liftM (\a -> construct (a :> wrap loop)) ma in wrap loop
 {-# INLINE repeatM_ #-}
 
-lrepeatM :: Monad m => m a -> Folding (Of a) m r
-lrepeatM ma = Folding (repeatM_ ma)
-{-# INLINE lrepeatM #-}
+repeatM :: Monad m => m a -> Folding (Of a) m r
+repeatM ma = Folding (repeatM_ ma)
+{-# INLINE repeatM #-}
 
 -- ---------------
 -- filter 
 -- ---------------
 
-jfilter :: (Monad m) => (a -> Bool) -> Folding_ (Of a) m r -> Folding_ (Of a) m r
-jfilter = \pred phi construct wrap done ->
-   phi (\aa@(a :> x) -> if pred a then construct aa else x)
-       wrap 
-       done
-{-# INLINE jfilter #-}
-
-lfilter :: Monad m => (a -> Bool) -> Folding (Of a) m r -> Folding (Of a) m r
-lfilter pred = \phi -> Folding (jfilter pred (getFolding phi))
-{-# INLINE lfilter #-}
+filter :: Monad m => (a -> Bool) -> Folding (Of a) m r -> Folding (Of a) m r
+filter pred = \(Folding phi) -> Folding (filter_ phi pred)
+{-# INLINE filter #-}
 
 filter_ :: (Monad m) => Folding_ (Of a) m r -> (a -> Bool) -> Folding_ (Of a) m r
 filter_ phi pred0 = \construct wrap done ->
@@ -113,23 +103,27 @@ filter_ phi pred0 = \construct wrap done ->
        pred0
 {-# INLINE filter_ #-}
 
-jfilterM :: (Monad m) => (a -> m Bool) -> Folding_ (Of a) m r -> Folding_ (Of a) m r
-jfilterM pred = \phi construct wrap done ->
-   phi (\aa@(a :> x) -> wrap $ liftM (\b -> if b then construct aa else x) (pred a))
-       wrap 
-       done
-{-# INLINE jfilterM #-}
 
-lfilterM :: Monad m => (a -> m Bool) -> Folding (Of a) m r -> Folding (Of a) m r
-lfilterM pred phi = Folding (jfilterM pred (getFolding phi))
+filterM_ :: (Monad m) => Folding_ (Of a) m r -> (a -> m Bool) -> Folding_ (Of a) m r
+filterM_ phi pred0 = \construct wrap done ->
+   phi ( \aa@(a :> x) pred -> wrap $ do p <- pred a  
+                                        return $ if p then construct (a :> x pred) 
+                                                      else x pred )
+       ( \mp pred -> wrap $ liftM ($pred) mp )
+       ( \r pred -> done r )
+       pred0
+{-# INLINE filterM_ #-}
+
+filterM :: Monad m => (a -> m Bool) -> Folding (Of a) m r -> Folding (Of a) m r
+filterM pred = \(Folding phi) -> Folding (filterM_ phi pred)
 
 -- ---------------
 -- drop
 -- ---------------
 
-ldrop :: Monad m => Int -> Folding (Of a) m r -> Folding (Of a) m r
-ldrop n = \phi -> Folding (jdrop n (getFolding phi))
-{-# INLINE ldrop #-}
+drop :: Monad m => Int -> Folding (Of a) m r -> Folding (Of a) m r
+drop n = \(Folding phi) -> Folding (drop_ phi n)
+{-# INLINE drop #-}
 
 jdrop :: Monad m => Int -> Folding_ (Of a) m r -> Folding_ (Of a) m r
 jdrop = \m phi construct wrap done -> 
@@ -140,49 +134,54 @@ jdrop = \m phi construct wrap done ->
     1
 {-# INLINE jdrop #-}
 
-jdrop_ :: Monad m => Folding_ (Of a) m r -> Int -> Folding_ (Of a) m r
-jdrop_ phi n0 = \construct wrap done -> 
+drop_ :: Monad m => Folding_ (Of a) m r -> Int -> Folding_ (Of a) m r
+drop_ phi n0 = \construct wrap done -> 
    phi  
     (\(a :> fn) n -> if n >= 0 then fn (n-1) else construct (a :> (fn (n-1))))
     (\m n -> wrap (m >>= \fn -> return (fn n)))
     (\r _ -> done r)
     n0
-{-# INLINE jdrop_ #-}
+{-# INLINE drop_ #-}
 
-ldrop_ :: Monad m => Int -> Folding (Of a) m r -> Folding (Of a) m r
-ldrop_ n = \phi -> Folding (jdrop_ (getFolding phi) n)
-{-# INLINE ldrop_ #-}
 
 -- ---------------
--- concats
+-- concats concat/join
 -- ---------------
 
-jconcats :: Monad m => Folding (Folding (Of a) m) m r -> Folding (Of a) m r
-jconcats (Folding phi) = Folding $ \construct wrap done ->
+concats :: Monad m => Folding (Folding (Of a) m) m r -> Folding (Of a) m r
+concats (Folding phi) = Folding $ \construct wrap done ->
   phi (\(Folding phi') -> phi' construct wrap id)  
       wrap
       done
+{-# INLINE concats #-}
 
-jconcats_ :: Monad m => Folding_ (Folding (Of a) m) m r -> Folding_ (Of a) m r
-jconcats_ phi = \construct wrap done ->
+concats1 :: Monad m => Folding_ (Folding (Of a) m) m r -> Folding_ (Of a) m r
+concats1 phi = \construct wrap done ->
   phi (\(Folding phi') -> phi' construct wrap id)  
       wrap
       done
+{-# INLINE concats1 #-}
 
-jconcats__ :: Monad m => Folding_ (Folding_ (Of a) m) m r -> Folding_ (Of a) m r
-jconcats__ phi = \construct wrap done ->
+concats0 :: Monad m => Folding_ (Folding_ (Of a) m) m r -> Folding_ (Of a) m r
+concats0 phi = \construct wrap done ->
   phi (\phi' -> phi' construct wrap id)  
       wrap
       done
+{-# INLINE concats0 #-}
+
+joinFold_ :: (Monad m, Functor f) => Folding_ f m (Folding_ f m r) -> Folding_ f m r
+joinFold_ phi = \c w d -> phi c w (\folding -> folding c w d)
+{-# INLINE joinFold_ #-}
 
 -- ---------------
 -- map
 -- ---------------
 
-lmap :: (a -> b) -> Folding (Of a) m r -> Folding (Of b) m r
-lmap f = \fold -> Folding (jmap f (getFolding fold))
-{-# INLINE lmap #-}
+map :: Monad m => (a -> b) -> Folding (Of a) m r -> Folding (Of b) m r
+map f = \(Folding phi) -> Folding (map_ phi f)
+{-# INLINE map #-}
 
+-- these definitions are suspiciously different
 jmap :: (a -> b) -> Folding_ (Of a) m r -> Folding_ (Of b) m r
 jmap = \f phi construct wrap done -> 
       phi (\(a :> x) -> construct (f a :> x)) 
@@ -198,65 +197,43 @@ map_ phi f0 = \construct wrap done ->
           f0
 {-# INLINE map_ #-}
 
+mapM__ :: Monad m => Folding_ (Of a) m r -> (a -> m b) -> Folding_ (Of b) m r
+mapM__ phi f0 = \construct wrap done -> 
+      phi (\(a :> x) f -> wrap $ liftM (\z -> construct (z :> x f)) (f a) ) 
+          (\mff f -> wrap (liftM ($f) mff)) 
+          (\r _ -> done r)       
+          f0 
+{-# INLINE mapM__ #-}
 
-jmapM :: Monad m => (a -> m b) -> Folding_ (Of a) m r -> Folding_ (Of b) m r
-jmapM f = \phi construct wrap done -> 
-      phi (\(a :> x) -> wrap (liftM (construct . (:> x)) (f a)))
-          wrap 
-          done        
-{-# INLINE jmapM #-}
 
-lmapM :: Monad m => (a -> m b) -> Folding (Of a) m r -> Folding (Of b) m r
-lmapM f = \(Folding phi) -> Folding (jmapM f phi)
-{-# INLINE lmapM #-}
+mapM :: Monad m => (a -> m b) -> Folding (Of a) m r -> Folding (Of b) m r
+mapM f = \(Folding phi) -> Folding (mapM__ phi f)
+{-# INLINE mapM #-}
 
 -- ---------------
 -- take
 -- ---------------
 
-
-
-take_ :: (Monad m, Functor f) => Int -> Folding_ f m r -> Folding_ f m ()
-take_ n phi = \construct wrap done -> phi 
+take_ :: (Monad m, Functor f) => Folding_ f m r -> Int -> Folding_ f m ()
+take_ phi n = \construct wrap done -> phi 
       (\fx n -> if n <= 0 then done () else construct (fmap ($(n-1)) fx))
       (\mx n -> if n <= 0 then done () else wrap (liftM ($n) mx)) 
       (\r n -> done ()) 
       n
 {-# INLINE take_ #-}
 
+take :: (Monad m, Functor f) => Int -> Folding f m r -> Folding f m ()
+take n = \(Folding phi)  -> Folding (take_ phi n)
+{-# INLINE take #-}
 
 
-
-jtake_ :: (Monad m, Functor f) => Folding_ f m r -> Int -> Folding_ f m ()
-jtake_ phi = \m construct wrap done-> phi 
-      (\fx n -> if n <= 0 then done () else construct (fmap ($(n-1)) fx))
-      (\mx n -> if n <= 0 then done () else wrap (liftM ($n) mx)) 
-      (\r n -> done ()) 
-      m
-{-# INLINE jtake_ #-}
-
-ltake :: (Monad m, Functor f) => Int -> Folding f m r -> Folding f m ()
-ltake n = \(Folding phi)  -> Folding (take_ n phi)
-{-# INLINE ltake #-}
-
-jtakeWhile :: Monad m => (a -> Bool) -> Folding_ (Of a) m r -> Folding_ (Of a) m ()
-jtakeWhile = \pred phi construct wrap done -> phi
-  (\(a :> fn) p -> if not (pred a) then done () 
-                                   else construct (a :> (fn True)))
-  (\m p -> if not p then done () else wrap (liftM ($p) m)) 
-  (\r p -> done ()) 
-  True 
-{-# INLINE jtakeWhile #-}
+takeWhile :: Monad m => (a -> Bool) -> Folding (Of a) m r -> Folding (Of a) m ()
+takeWhile pred = \(Folding fold) -> Folding (takeWhile_ fold pred)
+{-# INLINE takeWhile #-}
 
 
-
-ltakeWhile :: Monad m => (a -> Bool) -> Folding (Of a) m r -> Folding (Of a) m ()
-ltakeWhile pred = \(Folding fold) -> Folding (jtakeWhile pred fold)
-{-# INLINE ltakeWhile #-}
-
-
-jtakeWhile_ :: Monad m => Folding_ (Of a) m r -> (a -> Bool) -> Folding_ (Of a) m ()
-jtakeWhile_ phi pred0 =  \construct wrap done -> 
+takeWhile_ :: Monad m => Folding_ (Of a) m r -> (a -> Bool) -> Folding_ (Of a) m ()
+takeWhile_ phi pred0 =  \construct wrap done -> 
   phi (\(a :> fn) p pred_ -> if not (pred_ a) 
                                 then done () 
                                 else construct (a :> (fn True pred_)))
@@ -264,9 +241,7 @@ jtakeWhile_ phi pred0 =  \construct wrap done ->
       (\r p pred_ -> done ()) 
       True 
       pred0
-{-# INLINE jtakeWhile_ #-}
-
-
+{-# INLINE takeWhile_ #-}
 
 -- ------- 
 lenumFrom n = \construct wrap done -> 
@@ -289,15 +264,20 @@ lenumFromStepN start step n = \construct wrap done ->
 
 
 
-foldl_ ::  Monad m => (b -> a -> b) -> b -> Folding_ (Of a) m r -> m b
-foldl_ op b0 = \phi -> 
+foldl_ ::  Monad m => Folding_ (Of a) m r -> (b -> a -> b) -> b -> m b
+foldl_ phi = \ op b0 ->  
   phi (\(a :> fn) b -> fn $! flip op a $! b)
       (\mf b -> mf >>= \f -> f b)
       (\_ b -> return $! b)
       b0
 {-# INLINE foldl_ #-}
+--
+foldl ::  Monad m => (b -> a -> b) -> b -> Folding (Of a) m r ->  m b
+foldl op b = \(Folding phi) -> foldl_ phi op b
+{-# INLINE foldl #-}
 
-jscanr :: Monad m => (a -> b -> b) -> b -> Folding_ (Of a) m r -> Folding_ (Of b) m r
+jscanr :: Monad m => (a -> b -> b) -> b 
+       -> Folding_ (Of a) m r -> Folding_ (Of b) m r
 jscanr op b phi = phi 
       (\(a :> fx) b c w d -> c (b :> fx (op a b) c w d))
       (\mfx b c w d ->  w (liftM (\fx -> c (b :> fx b c w d)) mfx))
@@ -305,10 +285,101 @@ jscanr op b phi = phi
       b
 {-# INLINE jscanr #-}
 
+scanr :: Monad m =>  (a -> b -> b) -> b 
+      ->  Folding (Of a) m r -> Folding (Of b) m r
+scanr op b = \(Folding phi) -> Folding (lscanr_ phi op b)
 
-lscanr_ :: Monad m =>  Folding_ (Of a) m r -> (a -> b -> b) -> b -> Folding_ (Of b) m r
+lscanr_ :: Monad m =>  Folding_ (Of a) m r 
+        -> (a -> b -> b) -> b -> Folding_ (Of b) m r
 lscanr_ phi  = phi 
       (\(a :> fx) op b c w d -> c (b :> fx op (op a b) c w d))
       (\mfx op b c w d ->  w (liftM (\fx -> c (b :> fx op b c w d)) mfx))
       (\r op b c w d -> c (b :> d r))
 {-# INLINE lscanr_ #-}
+
+
+-----
+
+chunksOf :: Monad m 
+         => Int 
+         -> Folding (Of a) m r 
+         -> Folding (Folding (Of a) m) m r
+chunksOf = undefined 
+{-# INLINE chunksOf #-}
+
+chunksOf_ :: Monad m 
+         => Folding_ (Of a) m r 
+         -> Int
+         -> Folding_ (Folding_ (Of a) m) m r
+chunksOf_ phi n = \construct wrap done -> undefined 
+
+-- --------
+-- cons
+-- --------
+cons :: a -> Folding (Of a) m r  ->  Folding (Of a) m r
+cons a = \(Folding phi) -> Folding (jcons phi a)
+
+jcons :: Folding_ (Of a) m r  -> a ->  Folding_ (Of a) m r
+jcons phi = \a construct -> phi (construct . (a :>) . construct)  
+
+
+-- --------
+-- span
+-- --------
+span :: Monad m => (a -> Bool) -> Folding (Of a) m r 
+      -> Folding (Of a) m (Folding (Of a) m r)
+span pred (Folding phi) = 
+  Folding (\c w d -> jspan phi pred c w (d . Folding))
+{-# INLINE span #-}
+
+jspan :: (Monad m) 
+         => Folding_ (Of a) m r 
+         -> (a -> Bool) 
+         -> Folding_ (Of a) m (Folding_ (Of a) m r)
+jspan phi =  \pred construct wrap done -> phi 
+  ( \(a :> fn) p -> if not (p a)        -- jcons phi a -- vvv
+                      then done (\c w d -> phi (c . (a:>) . c) w d) 
+                      else construct (a :> fn p)  )
+  ( \mfn n -> wrap (liftM ($pred) mfn) )
+  ( \b n -> done (\c w d -> d b) ) 
+  pred
+{-# INLINE jspan #-}
+
+-- --------
+-- splitAt
+-- --------
+
+jsplitAt :: (Monad m) 
+         => Folding_ (Of a) m r 
+         -> Int 
+         -> Folding_ (Of a) m (Folding_ (Of a) m r)
+jsplitAt phi =  \m construct wrap done -> phi 
+  ( \(a :> fn) n -> if n <= 0 then done phi
+                              else construct (a :> fn (n-1)) )
+  ( \mfn n -> if n <= 0 then done phi 
+                        else wrap (liftM ($n) mfn) )
+  ( \b n -> done (\c w d -> d b) ) 
+  m
+{-# INLINE jsplitAt #-}
+
+jsplitAt_ :: (Monad m, Functor f) 
+         => Folding_ f m r 
+         -> Int 
+         -> Folding_ f m (Folding_ f m r)
+jsplitAt_ phi =  \m construct wrap done -> phi 
+  ( \ffn n -> if n <= 0 then done phi
+                        else construct (fmap ($(n-1)) ffn) )
+  ( \mfn n -> if n <= 0 then done phi 
+                        else wrap (liftM ($n) mfn) )
+  ( \b n -> done (\c w d -> d b) ) 
+  m
+{-# INLINE jsplitAt_ #-}
+
+-- this sort of thing should probably not be used, but modeled with
+-- something like (d . build...) not (d. Folding) ...
+splitAt :: (Monad m, Functor f) 
+         => Int 
+         -> Folding f m r 
+         -> Folding f m (Folding f m r)
+splitAt n = \(Folding phi) -> Folding (\c w d -> jsplitAt_ phi n c w (d . Folding))
+{-# INLINE splitAt #-}

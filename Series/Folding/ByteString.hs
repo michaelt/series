@@ -103,12 +103,12 @@ toHandle h = \(Folding phi) ->
 
 
 -- ------------------------
-span_  (Folding phi) p = Folding $ \construct wrap done -> 
-   getFolding (phi 
-        (\(bs :> rest) -> undefined)
-        (\mf -> undefined)
-        (\r c w d -> getFolding r c w d))
-        construct wrap done
+-- span_  (Folding phi) p = Folding $ \construct wrap done -> 
+--    getFolding (phi 
+--         (\(bs :> rest) -> undefined)
+--         (\mf -> undefined)
+--         (\r c w d -> getFolding r c w d))
+--         construct wrap done
 -- ------------------------                                       
 
      -- (\(bs :> Folding rest) -> Folding $ \c w d -> 

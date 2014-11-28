@@ -1,7 +1,29 @@
 {-# LANGUAGE LambdaCase, RankNTypes, ScopedTypeVariables #-}
-module Series.FreeT.Prelude where
+module Series.FreeT.Prelude
+    (concats, 
+     cons, 
+     drop, 
+     filter,
+     filterM,
+     foldl',
+     yield,
+     iterate,
+     iterateM,
+     map,
+     mapM,
+     repeat,
+     repeatM,
+     replicate,
+     scanr,
+     span, 
+     splitAt, 
+     sum,
+     take,
+     takeWhile,
+     enumFromStepN
+     ) where
 import Series.Types
-import Series.Folding.Prelude
+import qualified Series.Folding.Prelude as F
 import Control.Monad hiding (filterM, mapM)
 import Data.Functor.Identity
 import Control.Monad.Trans
@@ -9,8 +31,8 @@ import qualified System.IO as IO
 import Control.Monad.Trans.Free
 import Prelude hiding (map, filter, drop, take, sum
                       , iterate, repeat, replicate, splitAt
-                      , takeWhile, enumFrom, enumFromTo)
-
+                      , takeWhile, enumFrom, enumFromTo
+                      , mapM, scanr, span)
 
 
 -- ---------------
@@ -19,16 +41,45 @@ import Prelude hiding (map, filter, drop, take, sum
 -- ---------------
 -- ---------------
 
+-- ------
+-- concats
+-- ------
+
+concats_ :: Monad m =>  FreeT (Folding (Of a) m) m r -> FreeT (Of a) m r
+concats_  = buildFreeT 
+                . F.concats 
+                . foldFreeT
+{-# INLINE concats_ #-}
+
+concats :: Monad m =>  FreeT (FreeT (Of a) m) m r -> FreeT (Of a) m r
+concats  = buildFreeT 
+                . F.concats 
+                . (\(Folding phi) -> 
+                       Folding (\c w d -> phi (c . foldFreeT) w d))
+                . foldFreeT
+{-# INLINE concats #-}
+
+
+-- ------
+-- cons
+-- ------
+cons :: Monad m => a -> FreeT (Of a) m r -> FreeT (Of a) m r 
+cons a = buildFreeT . F.cons a . foldFreeT
+{-# INLINE cons #-}
+
+
+-- ------
+-- yield
+-- ------
 yield :: Monad m => a -> FreeT (Of a) m ()
-yield = buildFreeT . lyield
+yield = buildFreeT . F.yield
 {-# INLINE yield #-}
 
 -- -------
 -- foldl'
 -- -------
 foldl' :: Monad m => forall a b . (b -> a -> b) -> b -> FreeT (Of a) m r -> m b
-foldl' op b0 = (\(Folding phi) -> foldl_ op b0 phi)
-              . foldFreeT
+foldl' op b0 = F.foldl op b0 . foldFreeT 
 {-# INLINE foldl' #-}
 
 -- -------
@@ -37,28 +88,20 @@ foldl' op b0 = (\(Folding phi) -> foldl_ op b0 phi)
 
 scanr :: Monad m => (a -> b -> b) -> b -> FreeT (Of a) m r -> FreeT (Of b) m r
 scanr op b = buildFreeT 
-           . (\(Folding phi) -> Folding (jscanr op b phi)) 
+           . F.scanr op b
            . foldFreeT 
 {-# INLINE scanr #-}
 
 
-scanr2 :: Monad m => (a -> b -> b) -> b -> FreeT (Of a) m r -> FreeT (Of b) m r
-scanr2 op b = buildFreeT 
-              . (\(Folding phi) -> Folding (lscanr_ phi op b)) 
-              . foldFreeT 
-{-# INLINE scanr2 #-}
 
 -- ---------------
 -- sum 
 -- ---------------
 
 sum :: (Monad m, Num a) => FreeT (Of a) m () -> m a
-sum  = lsum . foldFreeT 
+sum  = F.sum . foldFreeT 
 {-# INLINE sum #-}
 
-sum2 :: (Monad m, Num n) => FreeT (Of n) m r -> m n
-sum2 = foldl' (+) 0 
-{-# INLINE sum2 #-}
 
 -- ---------------
 -- replicate 
@@ -69,7 +112,7 @@ replicate n = take n . repeat
 {-# INLINE replicate #-}
 
 replicateM :: Monad m => Int -> m a -> FreeT (Of a) m ()
-replicateM n a = buildFreeT (lreplicateM n a)
+replicateM n a = buildFreeT (F.replicateM n a)
 {-# INLINE replicateM #-}
 
 -- ---------------
@@ -77,11 +120,11 @@ replicateM n a = buildFreeT (lreplicateM n a)
 -- ---------------
 
 iterate :: Monad m => (a -> a) -> a -> FreeT (Of a) m r
-iterate f  = buildFreeT . literate f 
+iterate f  = buildFreeT . F.iterate f 
 {-# INLINE iterate #-}
 
 iterateM :: Monad m => (a -> m a) -> m a -> FreeT (Of a) m r
-iterateM = \f m -> buildFreeT (literateM f m)
+iterateM = \f m -> buildFreeT (F.iterateM f m)
 {-# INLINE iterateM #-}
 
 -- ---------------
@@ -89,25 +132,23 @@ iterateM = \f m -> buildFreeT (literateM f m)
 -- ---------------
 
 repeat :: Monad m => a -> FreeT (Of a) m r
-repeat = buildFreeT . (\a -> Folding (repeat_ a))
+repeat = buildFreeT . F.repeat 
 {-# INLINE repeat #-}
 
 repeatM :: Monad m => m a -> FreeT (Of a) m r
-repeatM = buildFreeT . lrepeatM
+repeatM = buildFreeT . F.repeatM
 {-# INLINE repeatM #-}
 
 -- ---------------
 -- filter 
 -- ---------------
-filter2 :: (Monad m) => (a -> Bool) -> FreeT (Of a) m r -> FreeT (Of a) m r 
-filter2 pred = buildFreeT . (\(Folding phi) -> Folding (filter_ phi pred)) . foldFreeT
 
 filter  :: (Monad m) => (a -> Bool) -> FreeT (Of a) m r -> FreeT (Of a) m r               
-filter pred = buildFreeT . lfilter pred . foldFreeT
+filter pred = buildFreeT . F.filter pred . foldFreeT
 {-# INLINE filter #-}
 
 filterM  :: (Monad m) => (a -> m Bool) -> FreeT (Of a) m r -> FreeT (Of a) m r
-filterM pred = buildFreeT . lfilterM pred . foldFreeT
+filterM pred = buildFreeT . F.filterM pred . foldFreeT
 {-# INLINE filterM #-}
 
 -- ---------------
@@ -115,7 +156,7 @@ filterM pred = buildFreeT . lfilterM pred . foldFreeT
 -- ---------------
 
 drop :: (Monad m) => Int -> FreeT (Of a) m r -> FreeT (Of a) m r
-drop n = buildFreeT . ldrop n . foldFreeT
+drop n = buildFreeT . F.drop n . foldFreeT
 {-# INLINE drop #-}
 
 
@@ -124,85 +165,53 @@ drop n = buildFreeT . ldrop n . foldFreeT
 -- ---------------
 
 
-take2 :: (Monad m, Functor f) => Int -> FreeT f m r -> FreeT f m ()
-take2 n = buildFreeT . (\(Folding phi)  -> Folding (jtake_ phi n)) . foldFreeT
-{-# INLINE take2 #-}
-
 take :: (Monad m, Functor f) => Int -> FreeT f m r -> FreeT f m ()
-take n = buildFreeT . ltake n . foldFreeT
+take n = buildFreeT . F.take n . foldFreeT
 {-# INLINE take #-}
 
 takeWhile :: Monad m => (a -> Bool) -> FreeT (Of a) m r -> FreeT (Of a) m ()
-takeWhile pred = buildFreeT . ltakeWhile pred . foldFreeT 
+takeWhile pred = buildFreeT . F.takeWhile pred . foldFreeT 
 {-# INLINE takeWhile #-}
-
-takeWhile2 :: Monad m => (a -> Bool) -> FreeT (Of a) m r -> FreeT (Of a) m ()
-takeWhile2 pred = buildFreeT 
-               . (\(Folding fold) -> Folding (jtakeWhile_ fold pred)) 
-               . foldFreeT
-{-# INLINE takeWhile2#-}
-
 
 -- ---------------
 -- map
 -- ---------------
 
-map2 :: Monad m => (a -> b) -> FreeT (Of a) m r -> FreeT (Of b) m r
-map2 f = buildFreeT . (\(Folding phi) -> Folding (map_ phi f)) . foldFreeT
-{-# INLINE map2 #-}
 
 map :: Monad m => (a -> b) -> FreeT (Of a) m r -> FreeT (Of b) m r
-map f = buildFreeT . lmap f . foldFreeT
+map f = buildFreeT . F.map f . foldFreeT
 {-# INLINE map #-}
 
 mapM :: Monad m => (a -> m b) -> FreeT (Of a) m r -> FreeT (Of b) m r
-mapM f = buildFreeT . lmapM f . foldFreeT
+mapM f = buildFreeT . F.mapM f . foldFreeT
 {-# INLINE mapM #-}
 
-
-
-
-enumFrom n = buildFreeT (Folding (lenumFrom n))
-enumFromTo n m = buildFreeT (Folding (lenumFromTo n m))
-enumFromToStep n m k = buildFreeT (Folding (lenumFromToStep n m k))
+span :: Monad m => (a -> Bool) -> FreeT (Of a) m r 
+      -> FreeT (Of a) m (FreeT (Of a) m r)
+span pred = 
+  buildFreeT 
+  . ( \(Folding phi) -> 
+        Folding (\c w d -> F.jspan phi pred c w (d . buildFreeT . Folding)))
+  . foldFreeT
+  
+  
+splitAt :: (Monad m, Functor f) 
+         => Int 
+         -> FreeT f m r 
+         -> FreeT f m (FreeT f m r)
+splitAt n = 
+   buildFreeT 
+   . (\(Folding phi) -> Folding (\c w d -> F.jsplitAt_ phi n c w (d . buildFreeT . Folding)))
+   . foldFreeT 
+{-# INLINE splitAt #-}
+enumFrom n = buildFreeT (Folding (F.lenumFrom n))
+enumFromTo n m = buildFreeT (Folding (F.lenumFromTo n m))
+enumFromToStep n m k = buildFreeT (Folding (F.lenumFromToStep n m k))
 
 enumFromStepN :: (Monad m, Num a) => a -> a -> Int -> FreeT (Of a) m ()
-enumFromStepN start step n = buildFreeT (Folding (lenumFromStepN start step n))
+enumFromStepN start step n = buildFreeT (Folding (F.lenumFromStepN start step n))
 {-# INLINE enumFromStepN #-}
 
 
--- ---------------------------------------
--- IO fripperies copped from Pipes.Prelude
--- ---------------------------------------
 
 
--- stdinLn = Wrap loop where
---   loop = getLine >>= \str -> return (Construct (str :> Wrap loop))
--- 
--- jstdinLn = \construct wrap done -> 
---      let loop = wrap $ getLine >>= \str -> return (construct (str :> loop))
---      in loop 
---
-stdinLn :: MonadIO m => FreeT (Of String) m ()
-stdinLn = fromHandle IO.stdin
-{-# INLINABLE stdinLn #-}
-
--- | 'read' values from 'IO.stdin', ignoring failed parses
-readLn :: (MonadIO m, Read a) => FreeT (Of a) m ()
-readLn = map read stdinLn
-{-# INLINABLE readLn #-}
-
-{-| Read 'String's from a 'IO.Handle' using 'IO.hGetLine'
-
-    Terminates on end of input
--}
-fromHandle :: MonadIO m => IO.Handle -> FreeT (Of String) m ()
-fromHandle h = go
-  where
-    go = do
-        eof <- liftIO $ IO.hIsEOF h
-        unless eof $ do
-            str <- liftIO $ IO.hGetLine h
-            yield str
-            go
-{-# INLINABLE fromHandle #-}     
