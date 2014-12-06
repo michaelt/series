@@ -348,33 +348,53 @@ jspan phi =  \pred construct wrap done -> phi
 -- --------
 -- splitAt
 -- --------
+-- int -> (Of a y -> y) -> (m y -> y) -> (r -> y) -> y
+-- thus
+-- construct :: (Of a (Int -> x)) -> Int -> x
+-- wrap :: (m (Int -> x)) -> Int -> x
+-- done :: (((Of a y -> y) -> (m y -> y) -> (r -> y) -> y) -> Int -> x)
+
+-- int 
+-- -> (Of a (Int -> x)       -> (Int -> x))
+-- -> (m (Int -> x)           -> (Int -> x))
+-- -> (((Of a y -> y) -> (m y -> y) -> (r -> y) -> y) -> Int -> x) 
+-- -> x
 
 jsplitAt :: (Monad m) 
          => Folding_ (Of a) m r 
-         -> Int 
+         -> Int  
          -> Folding_ (Of a) m (Folding_ (Of a) m r)
-jsplitAt phi =  \m construct wrap done -> phi 
-  ( \(a :> fn) n -> if n <= 0 then done phi
-                              else construct (a :> fn (n-1)) )
+jsplitAt phi m = \construct wrap done -> phi 
+  ( \(a :> fn) -> \n -> if n <= 0 then done (\c w d -> phi c w d)
+                                  else construct (a :> fn (n-1)) )
   ( \mfn n -> if n <= 0 then done phi 
                         else wrap (liftM ($n) mfn) )
   ( \b n -> done (\c w d -> d b) ) 
   m
 {-# INLINE jsplitAt #-}
+---
+
 
 jsplitAt_ :: (Monad m, Functor f) 
          => Folding_ f m r 
          -> Int 
          -> Folding_ f m (Folding_ f m r)
 jsplitAt_ phi =  \m construct wrap done -> phi 
-  ( \ffn n -> if n <= 0 then done phi
-                        else construct (fmap ($(n-1)) ffn) )
-  ( \mfn n -> if n <= 0 then done phi 
+  ( \ffn n -> if n >= m then done phi
+                        else construct (fmap ($(n+1)) ffn) )
+  ( \mfn n -> if n >= m then done phi 
                         else wrap (liftM ($n) mfn) )
   ( \b n -> done (\c w d -> d b) ) 
-  m
+  
+  0
 {-# INLINE jsplitAt_ #-}
+--
+-- jsplitAt_' :: (Monad m, Functor f) 
+--          => Folding_ f m r 
+--          -> Int 
+--          -> Folding_ f m (Folding_ f m r)
 
+-- {-# INLINE jsplitAt_' #-}
 -- this sort of thing should probably not be used, but modeled with
 -- something like (d . build...) not (d. Folding) ...
 splitAt :: (Monad m, Functor f) 

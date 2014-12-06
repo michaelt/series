@@ -12,7 +12,9 @@ import qualified Series.Prelude.Direct as N
 import qualified Series.Producer.Prelude as Pr 
 import qualified Series.List.Prelude as L
 import qualified Control.Monad.Trans.Free as F
- 
+import qualified Data.Fuse.Prelude as E
+import qualified Data.Fuse.Core as E
+
 import Prelude hiding (map, filter, drop, take, sum
                       , iterate, repeat, replicate, splitAt
                       , takeWhile, enumFrom, enumFromTo
@@ -24,7 +26,6 @@ import qualified Pipes
 
 import qualified Pipes.Prelude as PP
 import qualified Data.Vector.Unboxed as V
-
 value :: Int
 value = 100
 big :: Int
@@ -112,7 +113,15 @@ pipe_naive n = runIdentity $
                   >-> PP.drop 100
                   >-> PP.take n
 {-# INLINE pipe_naive #-}
-
+long_fused_fuse :: Int -> Int
+long_fused_fuse  n = runIdentity $ E.sum ( 
+             (E.take n
+              (E.drop 100
+                (E.map (\x -> 3*x + 1)
+                (E.filter even
+               ((E.iterate (\x -> x+1) (10 :: Int) ) :: E.List (E.Of Int) Identity ())
+              )))))  
+{-# INLINE long_fused_fuse  #-}
 
 -- -------------------
 -- shorter composition
@@ -149,6 +158,13 @@ short_producer_naive = \n -> runIdentity $
                    )
 {-# INLINE short_producer_naive #-}                
 
+short_fuse :: Int -> Int
+short_fuse = \n -> runIdentity $ 
+  E.sum (E.take n (E.iterate (\x -> x+1) (10 :: Int) :: E.List (E.Of Int) Identity ()))
+{-# INLINE short_fuse #-}
+
+
+
 -- -------------------
 -- simple sum
 -- -------------------
@@ -183,6 +199,9 @@ rV :: Int -> Int
 rV n = V.sum (V.replicate n 1)
 {-# INLINE rV #-}
 
+rFu :: Int -> Int 
+rFu n = runIdentity (E.sum (E.replicate n 1))
+{-# INLINE rFu #-}
 -- -----
 -- enum
 -- -----
@@ -244,30 +263,33 @@ main :: IO ()
 main =
   defaultMain
   [
-  bgroup "sum.map.enumFromTo"
-      [ bench "vector" $ whnf enum_vector value
-      , bench "series"  $ whnf enum_naive value
- --     , bench "pipes"  $ whnf enum_pipe_naive value
-      , bench "list"   $ whnf enum_list value
-      , bench "FOLDING/series"  $ whnf enum_fused value      
-      , bench "FOLDING/freet"  $ whnf enum_free value
-      , bench "FOLDING/pipes" $ whnf enum_pipe value
-      , bench "FOLDING/list" $ whnf enum_list_fused value
-      ]
-  , bgroup "sum.map.enumFromTo.pointfree"
-      [ bench "vector" $ whnf enum_vector_dot value
-      , bench "series"  $ whnf enum_naive_dot value
-      , bench "list"   $ whnf enum_list_dot value
-      , bench "FOLDING/series"  $ whnf enum_fused_dot value
-      , bench "FOLDING/freet"  $ whnf enum_fused_dot value
-      , bench "FOLDING/pipes"  $ whnf enum_pipe_dot value
-      , bench "FOLDING/list"  $ whnf enum_list_fused_dot value
-       ]
- , bgroup "sum.replicate"
+ --  bgroup "sum.map.enumFromTo"
+ --      [ bench "vector" $ whnf enum_vector value
+ --      , bench "series"  $ whnf enum_naive value
+ -- --     , bench "pipes"  $ whnf enum_pipe_naive value
+ --      , bench "list"   $ whnf enum_list value
+ --      , bench "FOLDING/series"  $ whnf enum_fused value      
+ --      , bench "FOLDING/freet"  $ whnf enum_free value
+ --      , bench "FOLDING/pipes" $ whnf enum_pipe value
+ --      , bench "FOLDING/list" $ whnf enum_list_fused value
+ --      ]
+ --  , bgroup "sum.map.enumFromTo.pointfree"
+ --      [ bench "vector" $ whnf enum_vector_dot value
+ --      , bench "series"  $ whnf enum_naive_dot value
+ --      , bench "list"   $ whnf enum_list_dot value
+ --      , bench "FOLDING/series"  $ whnf enum_fused_dot value
+ --      , bench "FOLDING/freet"  $ whnf enum_fused_dot value
+ --      , bench "FOLDING/pipes"  $ whnf enum_pipe_dot value
+ --      , bench "FOLDING/list"  $ whnf enum_list_fused_dot value
+ --       ]
+-- , 
+ bgroup "sum.replicate"
      [ bench "vector" $ whnf rV value
      , bench "series"  $ whnf rN value
      , bench "pipes" $ whnf rPrN value
      , bench "list"   $ whnf rL value
+     , bench "fuse"   $ whnf rFu value
+     
      , bench "FOLDING/series"  $ whnf rF value
      , bench "FOLDING/freet"  $ whnf rFr value
      , bench "FOLDING/list"  $ whnf rl value
@@ -279,6 +301,8 @@ main =
      , bench "series"  $ whnf short_naive value
      , bench "pipes"  $ whnf short_producer_naive value
      , bench "list"   $ whnf short_list value
+     , bench "fuse"   $ whnf short_fuse value
+     
      , bench "FOLDING/series"  $ whnf short_fused value
      , bench "FOLDING/freet"  $ whnf short_free value
      , bench "FOLDING/list"  $ whnf short_fused_list value
@@ -288,7 +312,7 @@ main =
   ,  bgroup "sum.take.map.drop.filter.iterate"
       [bench "vector" $ whnf long_vector value
       , bench "series"  $ whnf long_naive value  
---      , bench "pipes" $ whnf pipe_naive value
+--      , bench "fuse" $ whnf long_fused_fuse value
       , bench "list"   $ whnf long_list value
       , bench "FOLDING/series"  $ whnf long_fused value
       , bench "FOLDING/list"  $ whnf long_fused_list value

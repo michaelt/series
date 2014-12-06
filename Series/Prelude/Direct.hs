@@ -178,8 +178,13 @@ enumFromStepN start step = loop start
 {-# INLINEABLE enumFromStepN #-}
 
 
-
-
+splitAt :: Monad m => Int -> Series (Of a) m r -> Series (Of a) m (Series (Of a) m r)
+splitAt n = loop n where
+  loop n (Done r)              = Done (Done r)
+  loop n (Wrap m)              = Wrap (liftM (loop n) m)
+  loop n (Construct (a :> fs)) = case n of 
+     0 -> Done (Construct (a :> fs))
+     _ -> Construct (a :> loop (n-1) fs)
 -- ---------------------------------------
 -- IO fripperies copped from Pipes.Prelude
 -- ---------------------------------------

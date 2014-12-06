@@ -73,6 +73,8 @@ benchmark benchmarks
     vector,
     series,
     free >=4.9 && <4.10,
-    logict
+    logict,
+    fuse 
+-- darcs get http://hub.darcs.net/ertes-ag/fuse
     
     

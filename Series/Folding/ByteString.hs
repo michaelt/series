@@ -174,3 +174,8 @@ toHandle h = \(Folding phi) ->
 -- {-# INLINABLE _unlines #
 -- 
 -- 
+splitAt_ :: (Monad m) 
+         => Int 
+         -> Folding (Of ByteString) m r 
+         -> Folding (Of ByteString) m (Folding (Of ByteString) m r)
+splitAt_ n = undefined
