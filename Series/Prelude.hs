@@ -194,15 +194,17 @@ span pred =
   . foldSeries
   
   
-splitAt :: (Monad m, Functor f) 
+splitAt :: (Monad m) 
          => Int 
-         -> Series f m r 
-         -> Series f m (Series f m r)
+         -> Series (Of a) m r 
+         -> Series (Of a) m (Series (Of a) m r)
 splitAt n = 
-   buildSeries 
-   . (\(Folding phi) -> Folding (\c w d -> F.jsplitAt_ phi n c w (d . buildSeries . Folding)))
+   fmap buildSeries
+   . buildSeries 
+   . F.splitAt n
    . foldSeries 
 {-# INLINE splitAt #-}
+
 enumFrom n = buildSeries (Folding (F.lenumFrom n))
 enumFromTo n m = buildSeries (Folding (F.lenumFromTo n m))
 enumFromToStep n m k = buildSeries (Folding (F.lenumFromToStep n m k))

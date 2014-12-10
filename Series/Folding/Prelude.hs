@@ -13,6 +13,13 @@ import Prelude hiding (map, filter, drop, take, sum
 -- Prelude
 -- ---------------
 -- ---------------
+
+
+
+-- ---------------
+-- yield
+-- ---------------
+
 yield :: Monad m => a -> Folding (Of a) m ()
 yield r = Folding (\construct wrap done -> construct (r :> done ()))
 {-# INLINE yield #-}
@@ -173,6 +180,10 @@ joinFold_ :: (Monad m, Functor f) => Folding_ f m (Folding_ f m r) -> Folding_ f
 joinFold_ phi = \c w d -> phi c w (\folding -> folding c w d)
 {-# INLINE joinFold_ #-}
 
+joinFold (Folding phi) = Folding $ \c w d -> 
+        phi c w (\folding -> getFolding folding c w d)
+{-# INLINE joinFold #-}
+
 -- ---------------
 -- map
 -- ---------------
@@ -316,12 +327,15 @@ chunksOf_ phi n = \construct wrap done -> undefined
 -- --------
 -- cons
 -- --------
-cons :: a -> Folding (Of a) m r  ->  Folding (Of a) m r
-cons a = \(Folding phi) -> Folding (jcons phi a)
-
-jcons :: Folding_ (Of a) m r  -> a ->  Folding_ (Of a) m r
-jcons phi = \a construct -> phi (construct . (a :>) . construct)  
-
+cons :: Monad m => a -> Folding (Of a) m r -> Folding (Of a) m r
+cons a_ (Folding phi)  = Folding $ \construct wrap done -> 
+     phi (\(a :> a2p) a0 -> construct (a0 :> a2p a) 
+          )
+         (\m a0 -> wrap $ liftM ($ a0) m
+         )
+         (\r a0 ->  construct (a0 :> done r)
+         )
+         a_
 
 -- --------
 -- span
@@ -348,58 +362,21 @@ jspan phi =  \pred construct wrap done -> phi
 -- --------
 -- splitAt
 -- --------
--- int -> (Of a y -> y) -> (m y -> y) -> (r -> y) -> y
--- thus
--- construct :: (Of a (Int -> x)) -> Int -> x
--- wrap :: (m (Int -> x)) -> Int -> x
--- done :: (((Of a y -> y) -> (m y -> y) -> (r -> y) -> y) -> Int -> x)
 
--- int 
--- -> (Of a (Int -> x)       -> (Int -> x))
--- -> (m (Int -> x)           -> (Int -> x))
--- -> (((Of a y -> y) -> (m y -> y) -> (r -> y) -> y) -> Int -> x) 
--- -> x
-
-jsplitAt :: (Monad m) 
-         => Folding_ (Of a) m r 
-         -> Int  
-         -> Folding_ (Of a) m (Folding_ (Of a) m r)
-jsplitAt phi m = \construct wrap done -> phi 
-  ( \(a :> fn) -> \n -> if n <= 0 then done (\c w d -> phi c w d)
-                                  else construct (a :> fn (n-1)) )
-  ( \mfn n -> if n <= 0 then done phi 
-                        else wrap (liftM ($n) mfn) )
-  ( \b n -> done (\c w d -> d b) ) 
+splitAt :: Monad m => Int -> Folding (Of a) m r 
+      -> Folding (Of a) m (Folding (Of a) m r)
+splitAt m (Folding phi)  = 
+  phi 
+  (\ (a :> n2prod) n -> 
+     if n > (0 :: Int) 
+          then Folding $ \construct wrap done -> 
+                construct (a :> getFolding (n2prod (n-1)) construct wrap done)
+          else Folding $ \construct wrap done -> 
+                done $ a `cons` joinFold (n2prod (n)) 
+  )
+  (\m n -> Folding $ \c w r -> w (m >>= \n2fold -> return $ getFolding (n2fold n) c w r)
+  )
+  (\r n ->  Folding $ \construct wrap done -> done (Folding $ \c w d -> d r)
+  )
   m
-{-# INLINE jsplitAt #-}
----
-
-
-jsplitAt_ :: (Monad m, Functor f) 
-         => Folding_ f m r 
-         -> Int 
-         -> Folding_ f m (Folding_ f m r)
-jsplitAt_ phi =  \m construct wrap done -> phi 
-  ( \ffn n -> if n >= m then done phi
-                        else construct (fmap ($(n+1)) ffn) )
-  ( \mfn n -> if n >= m then done phi 
-                        else wrap (liftM ($n) mfn) )
-  ( \b n -> done (\c w d -> d b) ) 
-  
-  0
-{-# INLINE jsplitAt_ #-}
---
--- jsplitAt_' :: (Monad m, Functor f) 
---          => Folding_ f m r 
---          -> Int 
---          -> Folding_ f m (Folding_ f m r)
-
--- {-# INLINE jsplitAt_' #-}
--- this sort of thing should probably not be used, but modeled with
--- something like (d . build...) not (d. Folding) ...
-splitAt :: (Monad m, Functor f) 
-         => Int 
-         -> Folding f m r 
-         -> Folding f m (Folding f m r)
-splitAt n = \(Folding phi) -> Folding (\c w d -> jsplitAt_ phi n c w (d . Folding))
 {-# INLINE splitAt #-}
