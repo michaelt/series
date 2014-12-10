@@ -187,10 +187,10 @@ span :: Monad m => (a -> Bool) -> Producer a m r
       -> Producer a m (Producer a m r)
 span pred = 
   buildProducer 
-  . ( \(Folding phi) -> 
-        Folding (\c w d -> F.jspan phi pred c w (d . buildProducer . Folding)))
+  . fmap buildProducer
+  . F.span pred
   . foldProducer
-  
+{-# INLINE span #-}
   
 splitAt :: (Monad m) 
          => Int 

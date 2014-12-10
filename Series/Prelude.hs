@@ -189,10 +189,10 @@ span :: Monad m => (a -> Bool) -> Series (Of a) m r
       -> Series (Of a) m (Series (Of a) m r)
 span pred = 
   buildSeries 
-  . ( \(Folding phi) -> 
-        Folding (\c w d -> F.jspan phi pred c w (d . buildSeries . Folding)))
+  . fmap buildSeries
+  . F.span pred
   . foldSeries
-  
+{-# INLINE span #-}
   
 splitAt :: (Monad m) 
          => Int 

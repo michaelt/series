@@ -189,11 +189,11 @@ mapM f = buildFreeT . F.mapM f . foldFreeT
 span :: Monad m => (a -> Bool) -> FreeT (Of a) m r 
       -> FreeT (Of a) m (FreeT (Of a) m r)
 span pred = 
-  buildFreeT 
-  . ( \(Folding phi) -> 
-        Folding (\c w d -> F.jspan phi pred c w (d . buildFreeT . Folding)))
+  buildFreeT
+  . fmap buildFreeT 
+  . F.span pred
   . foldFreeT
-  
+{-# INLINE span #-}
   
 splitAt :: (Monad m) 
          => Int 

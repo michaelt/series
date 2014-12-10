@@ -340,24 +340,45 @@ cons a_ (Folding phi)  = Folding $ \construct wrap done ->
 -- --------
 -- span
 -- --------
+
 span :: Monad m => (a -> Bool) -> Folding (Of a) m r 
       -> Folding (Of a) m (Folding (Of a) m r)
-span pred (Folding phi) = 
-  Folding (\c w d -> jspan phi pred c w (d . Folding))
+
+span pred0 (Folding phi)  = 
+  phi 
+  (\ (a :> folding) -> 
+     \pred -> 
+      if pred a 
+          then Folding $ \construct wrap done -> 
+                construct (a :> getFolding (folding pred) construct wrap done)
+          else Folding $ \construct wrap done -> 
+                done $ a `cons` joinFold (folding pred) 
+  )
+  (\m -> 
+     \pred -> 
+        Folding $ \c w r -> 
+          w (m >>= \folding -> return $ getFolding (folding pred) c w r)
+  )
+  (\r -> 
+      \pred -> 
+         Folding $ \construct wrap done -> 
+           done (Folding $ \c w d -> d r)
+  )
+  pred0
 {-# INLINE span #-}
 
-jspan :: (Monad m) 
-         => Folding_ (Of a) m r 
-         -> (a -> Bool) 
-         -> Folding_ (Of a) m (Folding_ (Of a) m r)
-jspan phi =  \pred construct wrap done -> phi 
-  ( \(a :> fn) p -> if not (p a)        -- jcons phi a -- vvv
-                      then done (\c w d -> phi (c . (a:>) . c) w d) 
-                      else construct (a :> fn p)  )
-  ( \mfn n -> wrap (liftM ($pred) mfn) )
-  ( \b n -> done (\c w d -> d b) ) 
-  pred
-{-# INLINE jspan #-}
+-- jspan :: (Monad m) 
+--          => Folding_ (Of a) m r 
+--          -> (a -> Bool) 
+--          -> Folding_ (Of a) m (Folding_ (Of a) m r)
+-- jspan phi =  \pred construct wrap done -> phi 
+--   ( \(a :> fn) p -> if not (p a)        -- jcons phi a -- vvv
+--                       then done (\c w d -> phi (c . (a:>) . c) w d) 
+--                       else construct (a :> fn p)  )
+--   ( \mfn n -> wrap (liftM ($pred) mfn) )
+--   ( \b n -> done (\c w d -> d b) ) 
+--   pred
+-- {-# INLINE jspan #-}
 
 -- --------
 -- splitAt
