@@ -200,8 +200,8 @@ splitAt :: (Monad m)
          -> FreeT (Of a) m r 
          -> FreeT (Of a) m (FreeT (Of a) m r)
 splitAt n = 
-   fmap buildFreeT
-   . buildFreeT 
+   buildFreeT
+   . fmap buildFreeT 
    . F.splitAt n
    . foldFreeT 
 {-# INLINE splitAt #-}

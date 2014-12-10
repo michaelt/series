@@ -199,8 +199,8 @@ splitAt :: (Monad m)
          -> Series (Of a) m r 
          -> Series (Of a) m (Series (Of a) m r)
 splitAt n = 
-   fmap buildSeries
-   . buildSeries 
+   buildSeries 
+   . fmap buildSeries
    . F.splitAt n
    . foldSeries 
 {-# INLINE splitAt #-}
