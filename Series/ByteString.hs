@@ -41,3 +41,4 @@ hGet :: Int -> IO.Handle -> Series (Of ByteString) IO ()
 hGet size = buildSeries . FB.hGet size
 {-# INLINABLE hGet #-}
 
+

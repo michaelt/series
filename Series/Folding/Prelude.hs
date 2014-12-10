@@ -384,9 +384,9 @@ span pred0 (Folding phi)  =
 -- splitAt
 -- --------
 
-splitAt :: Monad m => Int -> Folding (Of a) m r 
+splitAt_ :: Monad m => Int -> Folding (Of a) m r 
       -> Folding (Of a) m (Folding (Of a) m r)
-splitAt m (Folding phi)  = 
+splitAt_ m (Folding phi)  = 
   phi 
   (\ (a :> n2prod) n -> 
      if n > (0 :: Int) 
@@ -400,4 +400,39 @@ splitAt m (Folding phi)  =
   (\r n ->  Folding $ \construct wrap done -> done (Folding $ \c w d -> d r)
   )
   m
+{-# INLINE splitAt_ #-}
+
+splitAt :: (Monad m, Functor f) => Int -> Folding f m r 
+        -> Folding f m (Folding f m r)
+splitAt m (Folding phi)  =  
+  phi 
+  (\ fold n ->   -- fold :: f (Int -> Folding f m (Folding f m r))
+     if n > (0 :: Int) 
+      then Folding $ \construct wrap done -> 
+        construct $ fmap (\f -> getFolding (f (n-1)) 
+                                    construct 
+                                    wrap 
+                                    done)
+                    fold
+      else Folding $ \construct wrap done -> 
+        done $ Folding $ \c w d -> 
+                c $ fmap (\f -> getFolding (f n)
+                                     c 
+                                     w 
+                                     (\(Folding psi) -> psi c w d))
+                    fold             
+  )
+  (\m n -> Folding $ \c w r -> w (m >>= \n2fold -> return $ getFolding (n2fold n) c w r)
+  )
+  (\r n ->  Folding $ \construct wrap done -> done (Folding $ \c w d -> d r)
+  )
+  m
 {-# INLINE splitAt #-}
+
+j :: (Monad m, Functor f) =>
+           f (Folding f m (Folding f m r)) -> Folding f m r
+j ffolding = 
+  Folding $ \cons w nil -> 
+       cons $ fmap (\f -> getFolding f cons w (\(Folding psi) -> psi cons w nil)) 
+              ffolding
+

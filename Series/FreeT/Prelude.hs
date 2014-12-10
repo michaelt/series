@@ -195,16 +195,28 @@ span pred =
   . foldFreeT
 {-# INLINE span #-}
   
-splitAt :: (Monad m) 
+splitAt :: (Monad m, Functor f) 
          => Int 
-         -> FreeT (Of a) m r 
-         -> FreeT (Of a) m (FreeT (Of a) m r)
+         -> FreeT f m r 
+         -> FreeT f m (FreeT f m r)
 splitAt n = 
    buildFreeT
    . fmap buildFreeT 
    . F.splitAt n
    . foldFreeT 
 {-# INLINE splitAt #-}
+--
+splitAt_ :: (Monad m) 
+         => Int 
+         -> FreeT (Of a) m r 
+         -> FreeT (Of a) m (FreeT (Of a) m r)
+splitAt_ n = 
+   buildFreeT
+   . fmap buildFreeT 
+   . F.splitAt_ n
+   . foldFreeT 
+{-# INLINE splitAt_ #-}
+
 enumFrom n = buildFreeT (Folding (F.lenumFrom n))
 enumFromTo n m = buildFreeT (Folding (F.lenumFromTo n m))
 enumFromToStep n m k = buildFreeT (Folding (F.lenumFromToStep n m k))

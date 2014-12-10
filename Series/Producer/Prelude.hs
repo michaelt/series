@@ -199,7 +199,7 @@ splitAt :: (Monad m)
 splitAt n = 
    buildProducer 
    . fmap buildProducer
-   . F.splitAt n
+   . F.splitAt_ n
    . foldProducer 
 {-# INLINE splitAt #-}
 

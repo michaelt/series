@@ -92,7 +92,6 @@ scanr op b = buildSeries
 {-# INLINE scanr #-}
 
 
-
 -- ---------------
 -- sum 
 -- ---------------
@@ -194,16 +193,27 @@ span pred =
   . foldSeries
 {-# INLINE span #-}
   
-splitAt :: (Monad m) 
+splitAt :: (Monad m, Functor f) 
          => Int 
-         -> Series (Of a) m r 
-         -> Series (Of a) m (Series (Of a) m r)
+         -> Series f m r 
+         -> Series f m (Series f m r)
 splitAt n = 
    buildSeries 
    . fmap buildSeries
    . F.splitAt n
    . foldSeries 
 {-# INLINE splitAt #-}
+--
+splitAt_ :: (Monad m) 
+         => Int 
+         -> Series (Of a) m r 
+         -> Series (Of a) m (Series (Of a) m r)
+splitAt_ n = 
+   buildSeries 
+   . fmap buildSeries
+   . F.splitAt_ n
+   . foldSeries 
+{-# INLINE splitAt_ #-}
 
 enumFrom n = buildSeries (Folding (F.lenumFrom n))
 enumFromTo n m = buildSeries (Folding (F.lenumFromTo n m))
