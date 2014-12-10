@@ -174,8 +174,32 @@ toHandle h = \(Folding phi) ->
 -- {-# INLINABLE _unlines #
 -- 
 -- 
-splitAt_ :: (Monad m) 
+splitAt :: (Monad m) 
          => Int 
          -> Folding (Of ByteString) m r 
          -> Folding (Of ByteString) m (Folding (Of ByteString) m r)
-splitAt_ n = undefined
+splitAt n0 (Folding phi) = 
+  phi 
+  (\(bs :> nfold) n -> 
+    let len = fromIntegral (B.length bs)
+        rest = joinFold (nfold (n-len))
+    in if n > 0
+       then if n > len 
+            then Folding $ \construct wrap done -> construct $
+                       bs :> getFolding (nfold (n-len)) construct wrap done
+            else let (prefix, suffix) =  B.splitAt (fromIntegral n) bs
+                 in Folding $ \construct wrap done -> construct $
+                       if B.null suffix 
+                       then prefix :> done rest
+                       else prefix :> done (cons suffix rest)
+       else Folding $ \construct wrap done ->  done $
+                        bs `cons` rest
+  )
+  (\m n -> Folding $ \construct wrap done -> wrap $
+                       liftM (\f -> getFolding (f n) construct wrap done) m
+  )
+  (\r n ->  Folding $ \construct wrap done -> done $
+                        Folding $ \c w d -> d r
+  )
+  n0
+

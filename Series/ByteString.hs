@@ -41,4 +41,12 @@ hGet :: Int -> IO.Handle -> Series (Of ByteString) IO ()
 hGet size = buildSeries . FB.hGet size
 {-# INLINABLE hGet #-}
 
-
+splitAt :: (Monad m) 
+         => Int 
+         -> Series (Of ByteString) m r 
+         -> Series (Of ByteString) m (Series (Of ByteString) m r)
+splitAt n =
+  buildSeries
+  . fmap buildSeries
+  . FB.splitAt n
+  . foldSeries
