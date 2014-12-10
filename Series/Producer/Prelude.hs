@@ -34,9 +34,7 @@ import Pipes hiding (yield)
 import Prelude hiding (map, filter, drop, take, sum
                       , iterate, repeat, replicate, splitAt
                       , takeWhile, enumFrom, enumFromTo
-                      , mapM, scanr, span)
-
-
+                      , mapM, scanr, span, break)
 -- ---------------
 -- ---------------
 -- Prelude
@@ -191,7 +189,25 @@ span pred =
   . F.span pred
   . foldProducer
 {-# INLINE span #-}
-  
+
+
+--
+-- --------
+-- break
+-- --------
+
+break
+  :: Monad m =>
+     (a -> Bool)
+     -> Producer a m r -> Producer a m (Producer a m r)
+break predicate = 
+  buildProducer 
+  . fmap buildProducer
+  . F.span  (not . predicate) 
+  . foldProducer
+{-# INLINE break #-}
+
+
 splitAt :: (Monad m) 
          => Int 
          -> Producer a m r 

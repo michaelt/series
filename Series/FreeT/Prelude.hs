@@ -32,9 +32,7 @@ import Control.Monad.Trans.Free
 import Prelude hiding (map, filter, drop, take, sum
                       , iterate, repeat, replicate, splitAt
                       , takeWhile, enumFrom, enumFromTo
-                      , mapM, scanr, span)
-
-
+                      , mapM, scanr, span, break)
 -- ---------------
 -- ---------------
 -- Prelude
@@ -194,6 +192,21 @@ span pred =
   . F.span pred
   . foldFreeT
 {-# INLINE span #-}
+  
+-- --------
+-- break
+-- --------
+
+break
+  :: Monad m =>
+     (a -> Bool)
+     -> FreeT (Of a) m r -> FreeT (Of a) m (FreeT (Of a) m r)
+break predicate = 
+     buildFreeT
+     . fmap buildFreeT 
+     . F.span  (not . predicate) 
+     . foldFreeT 
+{-# INLINE break #-}
   
 splitAt :: (Monad m, Functor f) 
          => Int 

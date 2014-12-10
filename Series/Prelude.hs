@@ -31,10 +31,8 @@ import qualified System.IO as IO
 import Prelude hiding (map, filter, drop, take, sum
                       , iterate, repeat, replicate, splitAt
                       , takeWhile, enumFrom, enumFromTo
-                      , mapM, scanr, span)
+                      , mapM, scanr, span, break)
 
-
--- ---------------
 -- ---------------
 -- Prelude
 -- ---------------
@@ -192,7 +190,17 @@ span pred =
   . F.span pred
   . foldSeries
 {-# INLINE span #-}
-  
+
+
+break :: Monad m => (a -> Bool) -> Series (Of a) m r 
+      -> Series (Of a) m (Series (Of a) m r)
+break pred = 
+  buildSeries 
+  . fmap buildSeries
+  . F.span (not . pred)
+  . foldSeries
+{-# INLINE break #-}
+--
 splitAt :: (Monad m, Functor f) 
          => Int 
          -> Series f m r 

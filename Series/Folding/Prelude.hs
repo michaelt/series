@@ -7,7 +7,8 @@ import Control.Monad.Trans
 import qualified System.IO as IO
 import Prelude hiding (map, filter, drop, take, sum
                       , iterate, repeat, replicate, splitAt
-                      , takeWhile, enumFrom, enumFromTo)
+                      , takeWhile, enumFrom, enumFromTo
+                      , mapM, scanr, span, break)
 -- ---------------
 -- ---------------
 -- Prelude
@@ -367,18 +368,15 @@ span pred0 (Folding phi)  =
   pred0
 {-# INLINE span #-}
 
--- jspan :: (Monad m) 
---          => Folding_ (Of a) m r 
---          -> (a -> Bool) 
---          -> Folding_ (Of a) m (Folding_ (Of a) m r)
--- jspan phi =  \pred construct wrap done -> phi 
---   ( \(a :> fn) p -> if not (p a)        -- jcons phi a -- vvv
---                       then done (\c w d -> phi (c . (a:>) . c) w d) 
---                       else construct (a :> fn p)  )
---   ( \mfn n -> wrap (liftM ($pred) mfn) )
---   ( \b n -> done (\c w d -> d b) ) 
---   pred
--- {-# INLINE jspan #-}
+-- --------
+-- break
+-- --------
+
+break
+  :: Monad m =>
+     (a -> Bool)
+     -> Folding (Of a) m r -> Folding (Of a) m (Folding (Of a) m r)
+break predicate = span (not . predicate)
 
 -- --------
 -- splitAt
