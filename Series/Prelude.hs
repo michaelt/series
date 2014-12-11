@@ -11,6 +11,7 @@ module Series.Prelude
    iterateM,
    map,
    mapM,
+   maps,
    repeat,
    repeatM,
    replicate,
@@ -181,6 +182,11 @@ map f = buildSeries . F.map f . foldSeries
 mapM :: Monad m => (a -> m b) -> Series (Of a) m r -> Series (Of b) m r
 mapM f = buildSeries . F.mapM f . foldSeries
 {-# INLINE mapM #-}
+
+maps:: (Monad m, Functor f, Functor g) => (forall x . f x -> g x) -> Series f m r -> Series g m r
+maps morph = buildSeries . F.maps morph . foldSeries
+{-# INLINE maps #-}
+
 
 span :: Monad m => (a -> Bool) -> Series (Of a) m r 
       -> Series (Of a) m (Series (Of a) m r)

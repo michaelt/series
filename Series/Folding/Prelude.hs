@@ -1,14 +1,43 @@
 {-# LANGUAGE LambdaCase, RankNTypes, ScopedTypeVariables #-}
-module Series.Folding.Prelude where
+module Series.Folding.Prelude (
+      break
+    , concats
+    , cons
+    , drop
+    , lenumFrom
+    , lenumFromStepN
+    , lenumFromTo
+    , lenumFromToStep
+    , filter
+    , filterM
+    , foldl
+    , iterate
+    , iterateM
+    , joinFold
+    , map
+    , mapM
+    , maps
+    , repeat
+    , repeatM
+    , replicate
+    , replicateM
+    , scanr
+    , span
+    , splitAt
+    , splitAt_
+    , sum
+    , take
+    , takeWhile
+    , yield ) where
 import Series.Types
-import Control.Monad hiding (filterM, mapM)
+import Control.Monad hiding (filterM, mapM, replicateM)
 import Data.Functor.Identity
 import Control.Monad.Trans
 import qualified System.IO as IO
 import Prelude hiding (map, filter, drop, take, sum
                       , iterate, repeat, replicate, splitAt
                       , takeWhile, enumFrom, enumFromTo
-                      , mapM, scanr, span, break)
+                      , mapM, scanr, span, break, foldl)
 -- ---------------
 -- ---------------
 -- Prelude
@@ -193,13 +222,6 @@ map :: Monad m => (a -> b) -> Folding (Of a) m r -> Folding (Of b) m r
 map f = \(Folding phi) -> Folding (map_ phi f)
 {-# INLINE map #-}
 
--- these definitions are suspiciously different
-jmap :: (a -> b) -> Folding_ (Of a) m r -> Folding_ (Of b) m r
-jmap = \f phi construct wrap done -> 
-      phi (\(a :> x) -> construct (f a :> x)) 
-          wrap 
-          done 
-{-# INLINE jmap #-}
 
 map_ :: Monad m => Folding_ (Of a) m r -> (a -> b) -> Folding_ (Of b) m r
 map_ phi f0 = \construct wrap done -> 
@@ -209,19 +231,26 @@ map_ phi f0 = \construct wrap done ->
           f0
 {-# INLINE map_ #-}
 
-mapM__ :: Monad m => Folding_ (Of a) m r -> (a -> m b) -> Folding_ (Of b) m r
-mapM__ phi f0 = \construct wrap done -> 
-      phi (\(a :> x) f -> wrap $ liftM (\z -> construct (z :> x f)) (f a) ) 
-          (\mff f -> wrap (liftM ($f) mff)) 
-          (\r _ -> done r)       
-          f0 
-{-# INLINE mapM__ #-}
+
 
 
 mapM :: Monad m => (a -> m b) -> Folding (Of a) m r -> Folding (Of b) m r
 mapM f = \(Folding phi) -> Folding (mapM__ phi f)
+  where
+    mapM__ :: Monad m => Folding_ (Of a) m r -> (a -> m b) -> Folding_ (Of b) m r
+    mapM__ phi f0 = \construct wrap done -> 
+          phi (\(a :> x) f -> wrap $ liftM (\z -> construct (z :> x f)) (f a) ) 
+              (\mff f -> wrap (liftM ($f) mff)) 
+              (\r _ -> done r)       
+              f0 
+    {-# INLINE mapM__ #-}
 {-# INLINE mapM #-}
 
+maps :: (Monad m, Functor g) => (forall x . f x -> g x) -> Folding f m r -> Folding g m r
+maps morph (Folding phi) = Folding $ \construct wrap done -> 
+    phi (construct . morph)
+        wrap
+        done
 -- ---------------
 -- take
 -- ---------------
@@ -256,6 +285,7 @@ takeWhile_ phi pred0 =  \construct wrap done ->
 {-# INLINE takeWhile_ #-}
 
 -- ------- 
+
 lenumFrom n = \construct wrap done -> 
       let loop m = construct (m :> loop (succ m)) in loop n
         

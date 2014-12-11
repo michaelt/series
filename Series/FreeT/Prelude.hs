@@ -1,30 +1,38 @@
 {-# LANGUAGE LambdaCase, RankNTypes, ScopedTypeVariables #-}
-module Series.FreeT.Prelude
-    (concats, 
-     cons, 
-     drop, 
-     filter,
-     filterM,
-     foldl',
-     yield,
-     iterate,
-     iterateM,
-     map,
-     mapM,
-     repeat,
-     repeatM,
-     replicate,
-     scanr,
-     span, 
-     splitAt, 
-     sum,
-     take,
-     takeWhile,
-     enumFromStepN
-     ) where
+module Series.FreeT.Prelude 
+    ( break
+    , concats
+    , concats_
+    , cons
+    , drop
+    , enumFrom
+    , enumFromStepN
+    , enumFromTo
+    , enumFromToStep
+    , filter
+    , filterM
+    , foldl'
+    , iterate
+    , iterateM
+    , map
+    , mapM
+    , maps
+    , repeat
+    , repeatM
+    , replicate
+    , replicateM
+    , scanr
+    , span
+    , splitAt
+    , splitAt_
+    , sum
+    , take
+    , takeWhile
+    , yield) where
+
 import Series.Types
 import qualified Series.Folding.Prelude as F
-import Control.Monad hiding (filterM, mapM)
+import Control.Monad hiding (filterM, mapM, replicateM)
 import Data.Functor.Identity
 import Control.Monad.Trans
 import qualified System.IO as IO
@@ -183,6 +191,10 @@ map f = buildFreeT . F.map f . foldFreeT
 mapM :: Monad m => (a -> m b) -> FreeT (Of a) m r -> FreeT (Of b) m r
 mapM f = buildFreeT . F.mapM f . foldFreeT
 {-# INLINE mapM #-}
+
+maps :: (Monad m, Functor f, Functor g) => (forall x . f x -> g x) -> FreeT f m r -> FreeT g m r
+maps morph = buildFreeT . F.maps morph . foldFreeT
+{-# INLINE maps #-}
 
 span :: Monad m => (a -> Bool) -> FreeT (Of a) m r 
       -> FreeT (Of a) m (FreeT (Of a) m r)
