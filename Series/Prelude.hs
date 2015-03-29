@@ -206,7 +206,7 @@ break pred =
   . F.span (not . pred)
   . foldSeries
 {-# INLINE break #-}
---
+
 splitAt :: (Monad m, Functor f) 
          => Int 
          -> Series f m r 
@@ -217,7 +217,7 @@ splitAt n =
    . F.splitAt n
    . foldSeries 
 {-# INLINE splitAt #-}
---
+
 splitAt_ :: (Monad m) 
          => Int 
          -> Series (Of a) m r 
